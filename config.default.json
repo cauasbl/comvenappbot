@@ -1,0 +1,27 @@
+{
+  "bankroll": 1000,
+  "kelly_fraction": 0.25,
+  "max_stake_pct": 0.02,
+  "min_ev": 0.03,
+  "min_kelly_pct": 0.005,
+  "max_ev": 0.15,
+  "min_odd": 1.5,
+  "max_odd": 3.5,
+  "max_overround": 1.08,
+  "devig": "power",
+  "sharp": "pinnacle",
+  "soft": "betano",
+  "include_handicap": false,
+  "window_hours": 24,
+  "monthly_request_limit": 200,
+  "max_fixtures": 10,
+  "scan_interval_min": 0,
+  "update_url": "",
+  "leagues": {
+    "UEFA Nations League": {"id": 23755, "enabled": true},
+    "Premier League": {"id": 17, "enabled": true},
+    "LaLiga": {"id": 8, "enabled": true},
+    "Brasileiro Serie B": {"id": 390, "enabled": false},
+    "Copa del Rey": {"id": 329, "enabled": false}
+  }
+}

@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EV CANTOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{--txt:#f3eaff;--dim:#8f86c0;--green:#39ff14;--red:#ff3860;--orange:#ff8a00}
+body[data-theme=sunset]{--cyan:#00f0ff;--pink:#ff2bd6;--yellow:#ffd319;--bg0:#07021a}
+body[data-theme=tron]{--cyan:#37e8ff;--pink:#ff8a00;--yellow:#eaffff;--bg0:#000}
+body[data-theme=pacman]{--cyan:#3d6bff;--pink:#ff4fa8;--yellow:#ffe600;--bg0:#000}
+body[data-theme=vapor]{--cyan:#7ffbe8;--pink:#ff9ee5;--yellow:#fff6a8;--bg0:#2b1055}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg0);color:var(--txt);font-family:"Press Start 2P","Courier New",monospace;font-size:12px;line-height:1.7}
+#bg{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;background:repeating-linear-gradient(0deg,rgba(0,0,0,.28) 0 1px,transparent 1px 3px);mix-blend-mode:multiply}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:49;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.7) 100%)}
+body.no-scan::after{display:none}body.no-vig::before{display:none}
+
+/* retangulo centralizado: .stage ocupa a janela e .screen usa margin:auto (centro exato, sem cortar telas altas) */
+.cab{position:relative;z-index:2;min-height:100vh;max-width:980px;margin:0 auto;padding:56px 16px;display:flex;flex-direction:column}
+.top{position:absolute;top:16px;left:16px;right:16px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:9px;color:var(--dim)}
+.top b{color:var(--yellow);font-weight:400}.ok{color:var(--green)}.bad{color:var(--red)}
+.stage{flex:1;display:flex}
+.screen{display:none;margin:auto;width:100%;border:3px solid var(--cyan);box-shadow:0 0 18px var(--cyan),inset 0 0 14px rgba(255,255,255,.06);background:rgba(8,3,24,.68);backdrop-filter:blur(3px);padding:22px;min-height:420px}
+.screen.on{display:block}
+h1.logo{margin:6px 0 4px;text-align:center;font-weight:400;font-size:clamp(28px,7vw,54px);color:var(--yellow);text-shadow:0 0 6px var(--yellow),0 0 22px var(--orange),4px 4px 0 var(--pink)}
+.tag{text-align:center;color:var(--cyan);font-size:10px;margin:0 0 18px}
+h2{font-weight:400;font-size:16px;color:var(--pink);text-shadow:0 0 10px var(--pink);margin:0 0 14px}
+h3{font-weight:400;font-size:11px;color:var(--cyan);margin:20px 0 8px;border-bottom:2px dashed var(--dim);padding-bottom:6px}
+.marquee{display:flex;align-items:center;justify-content:center;gap:10px;margin:6px 0 10px}
+.dots{display:flex;gap:14px}.dots i{width:8px;height:8px;background:var(--yellow);display:block;box-shadow:0 0 6px var(--yellow);animation:eat 1.4s infinite}
+.dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}.dots i:nth-child(4){animation-delay:.6s}.dots i:nth-child(5){animation-delay:.8s}
+@keyframes eat{0%,60%{opacity:1}80%,100%{opacity:.15}}
+ul.menu{list-style:none;margin:22px auto 14px;padding:0;max-width:420px}
+ul.menu li{padding:11px 14px;margin:7px 0;cursor:pointer;color:var(--txt);border:2px solid transparent}
+ul.menu li.sel{color:var(--yellow);border-color:var(--yellow);box-shadow:0 0 12px var(--yellow);text-shadow:0 0 8px var(--yellow)}
+ul.menu li.sel::before{content:"\25B6  "}
+.blink{animation:blink 1s steps(2) infinite;text-align:center;color:var(--cyan);font-size:10px}
+.press{font-size:20px;color:var(--yellow);text-shadow:0 0 12px var(--yellow);margin:34px 0 10px;cursor:pointer}
+.sub{text-align:center;color:var(--dim);font-size:9px;margin:6px 0}
+@keyframes blink{50%{opacity:0}}
+button,input{font-family:inherit;font-size:11px}
+button{cursor:pointer;background:#000;color:var(--cyan);border:2px solid var(--cyan);padding:9px 12px;margin:3px 4px 3px 0}
+button:hover,button:focus-visible{background:var(--cyan);color:#000;outline:none}
+button.on{background:var(--yellow);border-color:var(--yellow);color:#000}
+button.go{color:var(--green);border-color:var(--green)}button.go:hover{background:var(--green);color:#000}
+button.bad2{color:var(--red);border-color:var(--red)}button.bad2:hover{background:var(--red);color:#000}
+button:disabled{opacity:.35;cursor:not-allowed}
+input[type=text],input[type=number],input[type=search],input[type=password]{background:#000;color:var(--yellow);border:2px solid var(--dim);padding:8px;width:140px}
+input:focus{outline:none;border-color:var(--yellow)}
+input[type=range]{width:220px;accent-color:var(--pink);vertical-align:middle}
+.back{float:right}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0}
+.lg{display:flex;align-items:center;gap:10px;padding:7px 8px;border:1px solid rgba(143,134,192,.35);margin:5px 0}
+.lg .n{flex:1}.lg small{color:var(--dim)}
+.sw{width:34px;height:18px;border:2px solid var(--dim);position:relative;cursor:pointer;flex:none}
+.sw::after{content:"";position:absolute;top:1px;left:1px;width:12px;height:12px;background:var(--dim)}
+.sw.on{border-color:var(--green)}.sw.on::after{left:15px;background:var(--green);box-shadow:0 0 8px var(--green)}
+.cost{border:2px solid var(--orange);color:var(--orange);padding:12px;margin:10px 0;font-size:10px;line-height:2}
+.cost b{color:var(--yellow);font-weight:400}.cost.warn{border-color:var(--red);color:var(--red)}
+.log{background:rgba(0,0,0,.8);border:2px solid var(--green);color:var(--green);padding:10px;height:230px;overflow:auto;font-size:10px;line-height:1.9;white-space:pre-wrap}
+.card{border:2px solid var(--cyan);padding:12px;margin:12px 0;background:rgba(0,0,0,.4)}
+.card.bet{border-color:var(--green)}.card.ign{border-color:var(--dim);opacity:.7}
+.card .h{color:var(--yellow);font-size:12px}.card .m{color:var(--txt);font-size:10px;margin:6px 0}.card .k{color:var(--dim);font-size:9px}
+.ev{color:var(--green)}.tabs{margin:6px 0 10px}
+.tagx{background:var(--pink);color:#000;font-size:9px;padding:2px 6px;margin-left:8px;vertical-align:middle}
+.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:60;background:#000;border:2px solid var(--green);color:var(--green);padding:10px 16px;font-size:11px;display:none}
+.toast.err{border-color:var(--red);color:var(--red)}
+.hud{position:fixed;left:0;right:0;bottom:0;z-index:55;background:#000;border-top:3px solid var(--pink);padding:8px 14px;display:flex;gap:18px;flex-wrap:wrap;font-size:9px;color:var(--dim)}
+.hud b{color:var(--yellow);font-weight:400}
+.empty{color:var(--dim);text-align:center;padding:30px 0}
+.path{color:var(--yellow);word-break:break-all}
+.note{color:var(--dim);font-size:9px;line-height:2}
+@media (max-width:640px){body{font-size:10px}.screen{padding:14px}}
+</style>
+</head>
+<body data-theme="sunset">
+<canvas id="bg"></canvas>
+<div class="toast" id="toast"></div>
+<div class="cab">
+  <div class="top"><span>1UP <b id="top1">000000</b></span><span>EV CANTOS &middot; ARCADE EDITION</span><span>HI-SCORE <b>999999</b></span></div>
+  <main class="stage">
+
+  <!-- PRESS START -->
+  <section class="screen on" id="start">
+    <div class="marquee">
+      <svg width="44" height="44" viewBox="-10 -10 20 20"><path fill="#ffe600"><animate attributeName="d" dur=".35s" repeatCount="indefinite" values="M0,0 L9,-3 A9.5,9.5 0 1,0 9,3 Z;M0,0 L9.5,-.1 A9.5,9.5 0 1,0 9.5,.1 Z;M0,0 L9,-3 A9.5,9.5 0 1,0 9,3 Z"/></path></svg>
+      <div class="dots"><i></i><i></i><i></i><i></i><i></i></div>
+      <svg width="40" height="40" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#ff2bd6" d="M3 15V7a5 5 0 0 1 10 0v8l-2-2-1.5 2L8 13l-1.5 2L5 13z"/><rect x="5" y="6" width="2" height="3" fill="#fff"/><rect x="9" y="6" width="2" height="3" fill="#fff"/><rect x="6" y="7" width="1" height="2" fill="#00f0ff"/><rect x="10" y="7" width="1" height="2" fill="#00f0ff"/></svg>
+    </div>
+    <h1 class="logo">EV CANTOS</h1>
+    <p class="tag">PINNACLE &times; BETANO &middot; MERCADOS +EV</p>
+    <p class="press blink" id="pressStart">PRESS START</p>
+    <p class="sub">APERTE ENTER OU CLIQUE</p>
+    <p class="sub" id="startInfo"></p>
+  </section>
+
+  <!-- MENU -->
+  <section class="screen" id="menu">
+    <h1 class="logo">EV CANTOS</h1>
+    <p class="tag">PINNACLE &times; BETANO &middot; MERCADOS +EV</p>
+    <ul class="menu" id="menuList">
+      <li data-go="scan">INICIAR SCAN</li>
+      <li data-go="bets">MINHAS APOSTAS</li>
+      <li data-go="config">CONFIGURACOES</li>
+      <li data-go="fx">SOM E VISUAL</li>
+      <li data-go="upd">ATUALIZACOES</li>
+      <li data-go="quit">SAIR</li>
+    </ul>
+    <p class="blink">USE &uarr; &darr; E ENTER</p>
+  </section>
+
+  <!-- SCAN -->
+  <section class="screen" id="scan">
+    <button class="back" data-go="menu">&larr; MENU</button>
+    <h2>SCAN</h2>
+    <div class="row"><button class="go" id="btnScan">&#9654; START</button><span id="scanInfo"></span></div>
+    <div class="log" id="scanLog">AGUARDANDO START...</div>
+    <h3>RESULTADO</h3>
+    <div id="scanRes" class="empty">NENHUMA VARREDURA AINDA</div>
+  </section>
+
+  <!-- APOSTAS -->
+  <section class="screen" id="bets">
+    <button class="back" data-go="menu">&larr; MENU</button>
+    <h2>MINHAS APOSTAS</h2>
+    <div class="tabs" id="betTabs"></div>
+    <div id="betList"></div>
+  </section>
+
+  <!-- CONFIG -->
+  <section class="screen" id="config">
+    <button class="back" data-go="menu">&larr; MENU</button>
+    <h2>CONFIGURACOES</h2>
+    <div id="cfg"></div>
+  </section>
+
+  <!-- SOM E VISUAL -->
+  <section class="screen" id="fx">
+    <button class="back" data-go="menu">&larr; MENU</button>
+    <h2>SOM E VISUAL</h2>
+    <div id="fxBody"></div>
+  </section>
+
+  <!-- ATUALIZACOES -->
+  <section class="screen" id="upd">
+    <button class="back" data-go="menu">&larr; MENU</button>
+    <h2>ATUALIZACOES</h2>
+    <div id="updBody"></div>
+  </section>
+
+  <!-- SAIR -->
+  <section class="screen" id="quit">
+    <h2 style="text-align:center;margin-top:60px;color:var(--red)">GAME OVER</h2>
+    <p style="text-align:center;color:var(--dim)">PODE FECHAR ESTA ABA.<br>O PROGRAMA CONTINUA RODANDO NO TERMINAL (CTRL+C LA PARA ENCERRAR).</p>
+    <p style="text-align:center"><button data-go="menu">CONTINUAR? &#9654;</button></p>
+  </section>
+
+  </main>
+</div>
+<div class="hud" id="hud"></div>
+
+<script src="/static/audio.js"></script>
+<script src="/static/bg.js"></script>
+<script>
+const TOKEN="__TOKEN__";
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let S=null, M=null, screen="start", betTab="pending", sel=0, wasRunning=false;
+
+async function api(path,body){
+  const o=body===undefined?{}:{method:"POST",headers:{"Content-Type":"application/json","X-Token":TOKEN},body:JSON.stringify(body)};
+  const r=await fetch(path,o); const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error((j.errors&&j.errors.join("; "))||j.error||("HTTP "+r.status));
+  return j;
+}
+let tt; function toast(msg,err){const t=$("#toast");t.textContent=msg;t.className="toast"+(err?" err":"");t.style.display="block";clearTimeout(tt);tt=setTimeout(()=>t.style.display="none",2200);EVA.sfx(err?"err":"ok");}
+const fmtT=s=>{ if(!s) return "?"; const d=new Date(s); if(isNaN(d)) return String(s);
+  return d.toLocaleString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).toUpperCase(); }; // horario do seu computador
+const pct=(x,d=1)=>(x*100).toFixed(d)+"%";
+
+function go(name){
+  if(name==="quit"){ doQuit(); return; }
+  screen=name; document.querySelectorAll(".screen").forEach(e=>e.classList.toggle("on",e.id===name));
+  if(name==="bets") loadBets(); if(name==="config") renderCfg(); if(name==="scan") renderScan();
+  if(name==="fx") loadMusic(); if(name==="upd") renderUpd();
+  window.scrollTo(0,0);
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-go]"); if(b) go(b.dataset.go);});
+// som de clique em qualquer botao/interruptor/item de menu (o som so toca depois do PRESS START)
+document.addEventListener("click",e=>{ if(e.target.closest(".back")) EVA.sfx("back"); else if(e.target.closest("button,.sw,.menu li,[data-go]")) EVA.sfx("select"); },true);
+
+/* ---------- PRESS START ---------- */
+function startGame(){
+  EVA.unlock(); EVA.sfx("start");
+  if(S&&!S.keys.oddspapi){ go("config"); toast("PRIMEIRO: CADASTRE SUA CHAVE DO ODDSPAPI",true); } else go("menu");
+}
+$("#start").addEventListener("click",startGame);
+
+/* ---------- menu por teclado ---------- */
+const items=()=>[...document.querySelectorAll("#menuList li")];
+function paintMenu(){items().forEach((li,i)=>li.classList.toggle("sel",i===sel));}
+document.addEventListener("keydown",e=>{
+  if(["INPUT","TEXTAREA"].includes(document.activeElement.tagName)) {if(e.key==="Escape")document.activeElement.blur();return;}
+  if(screen==="start"){ if(e.key==="Enter"||e.key===" "){startGame();e.preventDefault();} return; }
+  if(screen==="menu"){
+    if(e.key==="ArrowDown"){sel=(sel+1)%items().length;paintMenu();EVA.sfx("move");e.preventDefault();}
+    else if(e.key==="ArrowUp"){sel=(sel+items().length-1)%items().length;paintMenu();EVA.sfx("move");e.preventDefault();}
+    else if(e.key==="Enter"){EVA.sfx("select");go(items()[sel].dataset.go);}
+  } else if(e.key==="Escape"||e.key==="Backspace"){EVA.sfx("back");go("menu");}
+});
+items().forEach((li,i)=>li.addEventListener("mouseenter",()=>{if(sel!==i)EVA.sfx("move");sel=i;paintMenu();}));
+paintMenu();
+
+/* ---------- som e visual aplicados a partir da configuracao ---------- */
+let lastUi="";
+function applyUi(ui){
+  const k=JSON.stringify(ui); if(k===lastUi) return; lastUi=k;
+  document.body.dataset.theme=ui.theme;
+  document.body.classList.toggle("no-scan",!ui.scanlines); document.body.classList.toggle("no-vig",!ui.vignette);
+  BG.configure({mode:ui.bg,theme:ui.theme,motion:ui.bg_motion,car:ui.car});
+  EVA.configure({music:ui.music,music_volume:ui.music_volume,track:ui.track,sfx:ui.sfx,sfx_volume:ui.sfx_volume});
+}
+
+/* ---------- estado / HUD ---------- */
+async function refresh(){
+  try{ S=await api("/api/state"); }catch(e){ $("#hud").innerHTML='<span class="bad">SEM CONEXAO COM O PROGRAMA</span>'; return; }
+  try{ applyUi(S.ui); }catch(e){ console.error("som/visual:",e); }  // uma falha visual nunca derruba o resto da tela
+  const left=S.budget.limit-S.budget.used;
+  const a=S.auto.interval?("A CADA "+S.auto.interval+"MIN"+(S.auto.next_in!=null?" ("+Math.floor(S.auto.next_in/60)+":"+String(S.auto.next_in%60).padStart(2,"0")+")":"")):"OFF";
+  const up=S.update&&S.update.available?` &middot; <b style="color:var(--pink)">ATUALIZACAO ${esc(S.update.version)}!</b>`:"";
+  $("#hud").innerHTML=
+    `<span>CREDITOS <b>${S.budget.used}/${S.budget.limit}</b> (${left} RESTAM)</span>`+
+    `<span>TELEGRAM <b class="${S.telegram.linked?'ok':'bad'}">${S.telegram.enabled?(S.telegram.linked?'ON':'MANDE /START'):'OFF'}</b></span>`+
+    `<span>AUTO <b>${a}</b></span>`+
+    `<span>CHAVE ODDS <b class="${S.keys.oddspapi?'ok':'bad'}">${S.keys.oddspapi?'OK':'FALTA'}</b></span>`+
+    `<span>V${esc(S.version)}${up}</span>`;
+  $("#top1").textContent=String((S.counts.bet||0)*100+(S.counts.ignored||0)).padStart(6,"0");
+  $("#startInfo").innerHTML=`V${esc(S.version)}`+(S.update&&S.update.available?` &middot; <span class="ok">ATUALIZACAO ${esc(S.update.version)} DISPONIVEL</span>`:"")+(!S.keys.oddspapi?' &middot; <span class="bad">FALTA A CHAVE DO ODDSPAPI</span>':"");
+  // sons do ciclo da varredura
+  const run=S.scan.running;
+  if(run&&!wasRunning) EVA.sfx("scan");
+  if(!run&&wasRunning){ EVA.sfx("done"); if(S.scan.result&&S.scan.result.sent>0) setTimeout(()=>EVA.sfx("alert"),700); }
+  wasRunning=run;
+  if(screen==="scan") renderScan();
+}
+setInterval(()=>{ if(!(["config","fx","upd"].includes(screen) && document.activeElement.tagName==="INPUT")) refresh(); },2000);
+
+/* ---------- SCAN ---------- */
+async function startScan(opts){
+  try{
+    const r=await api("/api/scan",opts||{});
+    if(r.started){ toast("SCAN INICIADO"); return true; }
+    if(r.reason==="budget"){
+      if(confirm(`ESTA VARREDURA PODE GASTAR ATE ${r.need} CONSULTAS E RESTAM ${r.left} NO MES.\n\nCONTINUAR MESMO ASSIM?`)) return startScan({force:true});
+      toast("SCAN CANCELADO",true); return false;
+    }
+    if(r.reason==="nokey"){ toast("CADASTRE A CHAVE DO ODDSPAPI",true); go("config"); return false; }
+    if(r.reason==="running"){ toast("JA ESTA RODANDO",true); return false; }
+    return false;
+  }catch(e){ toast(e.message,true); return false; }
+}
+$("#btnScan").addEventListener("click",async()=>{ await startScan({}); refresh(); });
+async function doQuit(){
+  if(!confirm("FECHAR O EV CANTOS?")) return;
+  try{ const r=await api("/api/quit",{}); if(r.closing) return; }catch(e){}
+  screen="quit"; document.querySelectorAll(".screen").forEach(e=>e.classList.toggle("on",e.id==="quit"));
+}
+let lastShown=null;
+async function renderScan(){
+  if(!S) return;
+  const sc=S.scan, [lists,cap]=[S.cost.lists,S.cost.cap];
+  $("#btnScan").disabled=sc.running; $("#btnScan").textContent=sc.running?"RODANDO...":"▶ START";
+  $("#scanInfo").innerHTML=`ATE <b style="color:var(--yellow)">${cap?lists+cap:"?"}</b> CONSULTAS (${lists} LIGAS + ${cap?cap:"TODOS OS"} JOGOS) &middot; JANELA ${S.config.window_hours}H`;
+  const L=$("#scanLog"); const txt=sc.log.map(l=>`[${l.t}] ${l.m}`).join("\n")||"AGUARDANDO START...";
+  if(L.textContent!==txt){L.textContent=txt;L.scrollTop=L.scrollHeight;}
+  const r=sc.result; const box=$("#scanRes");
+  if(!r){box.className="empty";box.textContent="NENHUMA VARREDURA AINDA";return;}
+  if(r.error){box.className="";box.innerHTML=`<span class="bad">ERRO: ${esc(r.error)}</span>`;return;}
+  box.className="";
+  const all=r.all_ids||r.ids||[], fresh=new Set(r.ids||[]);
+  const key=JSON.stringify([r.at,all]); if(key===lastShown) return; lastShown=key;
+  let html=`<p><b class="ok">${r.sent}</b> NOVOS &middot; ${r.dup} JA ENVIADOS &middot; ${r.suspicious} SUSPEITOS &middot; <b style="color:var(--yellow)">${all.length} NO TOTAL</b></p>`;
+  if(all.length){ try{ const {alerts}=await api("/api/alerts?ids="+all.join(",")); alerts.sort((a,b)=>b.ev-a.ev); html+=alerts.map(a=>cardHtml(a,fresh.has(a.id))).join(""); }catch(e){} }
+  box.innerHTML=html;
+}
+
+/* ---------- APOSTAS ---------- */
+const TABS=[["pending","PENDENTES"],["bet","APOSTEI"],["ignored","IGNOREI"],["expired","EXPIRADOS"],["all","TODAS"]];
+function cardHtml(a,isNew){
+  const cls=a.status==="bet"?"bet":a.status==="ignored"?"ign":"";
+  const st=a.status==="bet"?`<span class="ok">APOSTEI @ ${a.bet_odd.toFixed(2)} &middot; STAKE ${a.bet_stake.toFixed(2)}</span>`:a.status==="ignored"?'<span class="k">IGNORADO</span>':"";
+  const btns=a.status==="pending"?`<div><button class="go" data-dec="bet" data-id="${a.id}">&#10003; APOSTEI</button><button class="bad2" data-dec="ignored" data-id="${a.id}">&#10007; IGNOREI</button></div>`:"";
+  return `<div class="card ${cls}"><div class="h">${esc(a.fixture)}${isNew?' <span class="tagx">NOVO</span>':''}${a.expired?' <span class="tagx" style="background:var(--dim)">JA COMECOU</span>':''}</div>
+    <div class="m">${esc(a.market)} &mdash; <b style="color:var(--pink)">${esc(a.outcome)}</b></div>
+    <div class="m">BETANO <b style="color:var(--yellow)">${a.betano_odd.toFixed(2)}</b> &middot; JUSTA ${a.fair_odd?a.fair_odd.toFixed(2):"?"} &middot; PIN ${a.pin_odds.map(x=>x.toFixed(3)).join(" / ")}</div>
+    <div class="m">EV <span class="ev">${a.ev>=0?"+":""}${pct(a.ev)}</span> &middot; 1/4 KELLY ${pct(a.kelly_pct,2)} &middot; STAKE ${a.stake.toFixed(2)}</div>
+    <div class="k">INICIO ${fmtT(a.start_time)} ${st?" &middot; ":""}${st}</div>${btns}</div>`;
+}
+async function loadBets(){
+  $("#betTabs").innerHTML=TABS.map(([k,l])=>`<button class="${k===betTab?"on":""}" data-tab="${k}">${l}</button>`).join("");
+  try{
+    const {alerts}=await api("/api/alerts?status="+betTab);
+    $("#betList").innerHTML=alerts.length?alerts.map(a=>cardHtml(a)).join(""):'<div class="empty">NADA POR AQUI</div>';
+  }catch(e){$("#betList").innerHTML=`<span class="bad">${esc(e.message)}</span>`;}
+}
+document.addEventListener("click",async e=>{
+  const t=e.target.closest("[data-tab]"); if(t){betTab=t.dataset.tab;loadBets();return;}
+  const d=e.target.closest("[data-dec]"); if(d){
+    try{await api("/api/alerts/decide",{id:Number(d.dataset.id),status:d.dataset.dec});toast("REGISTRADO!");EVA.sfx(d.dataset.dec==="bet"?"coin":"back");refresh();if(screen==="bets")loadBets();else{lastShown=null;renderScan();}}
+    catch(err){toast(err.message,true);}
+  }
+});
+
+/* ---------- CONFIG ---------- */
+async function post(path,body){ try{ S=await api(path,body); toast("SALVO!"); renderCfg(); }catch(e){ toast(e.message,true); } }
+const setCfg=patch=>post("/api/config",patch);
+function preset(list,cur,key,fmt,unit){
+  const has=list.includes(cur);
+  return list.map(v=>`<button class="${v===cur?"on":""}" data-set='${key}' data-v="${v}">${fmt(v)}</button>`).join("")+
+    ` <input type="number" min="0" step="1" id="c_${key}" value="${has?"":cur}" placeholder="OUTRO ${unit}" style="width:120px"> <button data-apply="${key}">OK</button>`;
+}
+function renderCfg(){
+  if(!S) return; const c=S.config, iv=c.scan_interval_min, lists=S.cost.lists, cap=S.cost.cap;
+  const per=cap?lists+cap:null, left=S.budget.limit-S.budget.used;
+  let proj="";
+  if(per&&iv){const n=Math.floor(30*24*60/iv), tot=n*per; proj=`<br>AUTO A CADA ${iv}MIN = ~${n} VARREDURAS/MES = <b>~${tot} CONSULTAS/MES</b> (LIMITE ${S.budget.limit})`; if(tot>S.budget.limit)proj+=' <span class="bad">&mdash; ESTOURA O LIMITE!</span>';}
+  else if(!per) proj="<br>SEM TETO DE JOGOS: O CUSTO DEPENDE DE QUANTOS JOGOS HOUVER.";
+  const warn=(per&&per>left)||(per&&iv&&Math.floor(30*24*60/iv)*per>S.budget.limit);
+  $("#cfg").innerHTML=`
+  <div class="cost ${warn?"warn":""}">POR VARREDURA: ATE <b>${per??"?"}</b> CONSULTAS (${lists} LIGAS ATIVAS + ${cap?cap:"TODOS OS"} JOGOS)<br>SALDO DO MES: <b>${left}</b> DE ${S.budget.limit}${proj}</div>
+
+  <h3>CHAVES (FICAM SALVAS SO NESTE COMPUTADOR)</h3>
+  <div class="row">ODDSPAPI <input type="password" id="k_odds" autocomplete="off" placeholder="${S.keys.oddspapi?'SALVA - COLE OUTRA PARA TROCAR':'COLE A CHAVE AQUI'}" style="width:300px"> <button data-savekey="oddspapi_key">SALVAR</button> ${S.keys.oddspapi?'<b class="ok">OK</b>':'<b class="bad">FALTA</b>'}</div>
+  <div class="row">TELEGRAM (OPCIONAL) <input type="password" id="k_tg" autocomplete="off" placeholder="${S.keys.telegram?'SALVO - COLE OUTRO PARA TROCAR':'TOKEN DO BOTFATHER'}" style="width:300px"> <button data-savekey="telegram_token">SALVAR</button> ${S.keys.telegram?'<b class="ok">LIGADO</b>':'<b style="color:var(--dim)">DESLIGADO</b>'}</div>
+
+  <h3>LIGAS (MARQUE AS QUE O BOT VAI VER)</h3>
+  <div id="lgList">${S.leagues.map(l=>`<div class="lg"><div class="sw ${l.enabled?"on":""}" data-tg="${esc(l.name)}" title="liga/desliga"></div><div class="n">${esc(l.name)} <small>#${l.id}</small></div><button class="bad2" data-rm="${esc(l.name)}">X</button></div>`).join("")||'<div class="empty">NENHUMA LIGA</div>'}</div>
+  <div class="row"><input type="search" id="lgq" placeholder="BUSCAR CAMPEONATO..." style="width:260px"><button id="lgGo">BUSCAR</button></div>
+  <div id="lgRes"></div>
+
+  <h3>MERCADOS (O QUE O BOT COMPARA - NAO GASTA CONSULTA EXTRA)</h3>
+  <div>${S.families.map(f=>`<div class="lg"><div class="sw ${f.enabled?"on":""}" data-fam="${f.key}"></div><div class="n">${esc(f.label)}</div></div>`).join("")}</div>
+
+  <h3>QUANTIDADE DE JOGOS POR VARREDURA (0 = TODOS)</h3>
+  <div class="row">${preset([5,10,20,30,50],c.max_fixtures,"max_fixtures",v=>v,"JOGOS")}</div>
+
+  <h3>JANELA: JOGOS QUE COMECAM NAS PROXIMAS...</h3>
+  <div class="row">${preset([6,12,24,36,48,72],c.window_hours,"window_hours",v=>v+"H","HORAS")}</div>
+
+  <h3>VARREDURA AUTOMATICA</h3>
+  <div class="row">${preset([0,30,60,120,240,360,720],iv,"scan_interval_min",v=>v?(v>=60?v/60+"H":v+"MIN"):"OFF","MINUTOS")}</div>
+  <div class="note">CADA VARREDURA GASTA CONSULTAS DO PLANO. OS ALERTAS APARECEM AQUI NO APP (E NO TELEGRAM, SE ESTIVER LIGADO).</div>
+
+  <h3>BANCA E FILTROS</h3>
+  <div class="row">BANCA <input type="number" id="c_bankroll" value="${c.bankroll}" step="50"> <button data-apply="bankroll">OK</button>
+  &nbsp; EV MINIMO % <input type="number" id="c_min_ev" value="${(c.min_ev*100).toFixed(1)}" step="0.5" style="width:100px"> <button data-apply="min_ev_pct">OK</button></div>`;
+}
+document.addEventListener("click",async e=>{
+  if(screen!=="config") return;
+  const s=e.target.closest("[data-set]"); if(s){setCfg({[s.dataset.set]:Number(s.dataset.v)});return;}
+  const a=e.target.closest("[data-apply]"); if(a){
+    const k=a.dataset.apply; let v;
+    if(k==="min_ev_pct") v=["min_ev",Number($("#c_min_ev").value)/100]; else v=[k,Number($("#c_"+k).value)];
+    if(Number.isNaN(v[1])||$("#c_"+(k==="min_ev_pct"?"min_ev":k)).value==="") return toast("VALOR INVALIDO",true);
+    setCfg({[v[0]]:v[1]}); return;}
+  const sk=e.target.closest("[data-savekey]"); if(sk){
+    const k=sk.dataset.savekey, v=$(k==="oddspapi_key"?"#k_odds":"#k_tg").value.trim();
+    if(!v) return toast("COLE O VALOR PRIMEIRO",true);
+    post("/api/keys",{[k]:v}); return;}
+  const fm=e.target.closest("[data-fam]"); if(fm){const f=S.families.find(x=>x.key===fm.dataset.fam); setCfg({families:{[f.key]:!f.enabled}}); return;}
+  const tg=e.target.closest("[data-tg]"); if(tg){post("/api/league",{op:"toggle",name:tg.dataset.tg});return;}
+  const rm=e.target.closest("[data-rm]"); if(rm){ if(confirm("Remover a liga "+rm.dataset.rm+"?")) post("/api/league",{op:"remove",name:rm.dataset.rm}); return;}
+  const ad=e.target.closest("[data-add]"); if(ad){post("/api/league",{op:"add",name:ad.dataset.name,id:Number(ad.dataset.add)});return;}
+  if(e.target.id==="lgGo") searchLeagues();
+});
+document.addEventListener("keydown",e=>{ if(e.key==="Enter"&&e.target.id==="lgq") searchLeagues(); });
+async function searchLeagues(){
+  const q=$("#lgq").value.trim(); if(q.length<2) return toast("DIGITE 2+ LETRAS",true);
+  try{
+    const {results}=await api("/api/leagues/search?q="+encodeURIComponent(q));
+    $("#lgRes").innerHTML=results.length?results.map(r=>`<div class="lg"><div class="n">${esc(r.name)} <small>${esc(r.country)} &middot; #${r.id} &middot; ${r.fixtures} JOGOS</small></div>${r.added?'<small class="ok">JA ADICIONADA</small>':`<button class="go" data-add="${r.id}" data-name="${esc(r.name+" ("+r.country+")")}">+ ADD</button>`}</div>`).join(""):'<div class="empty">NADA ENCONTRADO</div>';
+  }catch(e){toast(e.message,true);}
+}
+
+/* ---------- SOM E VISUAL ---------- */
+async function loadMusic(){ try{ M=await api("/api/music"); }catch(e){ M={builtin:[],files:[],dir:""}; } renderFx(); }
+async function setUi(patch){
+  S.ui={...S.ui,...patch}; applyUi(S.ui); renderFx();   // aplica na hora, salva em seguida
+  try{ S=await api("/api/config",{ui:patch}); }catch(e){ toast(e.message,true); refresh(); }
+}
+const swHtml=(key,label,note)=>`<div class="lg"><div class="sw ${S.ui[key]?"on":""}" data-ui="${key}"></div><div class="n">${label}${note?` <small>${note}</small>`:""}</div></div>`;
+const choice=(key,val,label)=>`<button class="${S.ui[key]===val?"on":""}" data-uiset="${key}" data-v="${esc(val)}">${label}</button>`;
+function renderFx(){
+  if(!S||!M) return; const u=S.ui;
+  const tracks=M.builtin.map(t=>choice("track",t.id,`${esc(t.name)} <small>${t.bpm}BPM</small>`)).join("")+
+    M.files.map(f=>choice("track","file:"+f,"&#9835; "+esc(f))).join("");
+  $("#fxBody").innerHTML=`
+  <h3>MUSICA</h3>
+  ${swHtml("music","MUSICA DE FUNDO")}
+  <div class="row">VOLUME <input type="range" min="0" max="100" value="${Math.round(u.music_volume*100)}" data-rng="music_volume"> <b id="v_music_volume">${Math.round(u.music_volume*100)}%</b></div>
+  <div class="row">${tracks}</div>
+  <div class="note">AS 3 PRIMEIRAS SAO SYNTHWAVE GERADO PELO PROPRIO APP (NADA DE TERCEIROS). PARA USAR AS SUAS, COLOQUE ARQUIVOS MP3, OGG, WAV, M4A OU FLAC NESTA PASTA E CLIQUE EM ATUALIZAR LISTA:<br><span class="path">${esc(M.dir)}</span></div>
+  <div class="row"><button data-openmusic>ABRIR PASTA</button><button data-rescan>ATUALIZAR LISTA</button></div>
+
+  <h3>EFEITOS SONOROS</h3>
+  ${swHtml("sfx","EFEITOS DE NAVEGACAO")}
+  <div class="row">VOLUME <input type="range" min="0" max="100" value="${Math.round(u.sfx_volume*100)}" data-rng="sfx_volume"> <b id="v_sfx_volume">${Math.round(u.sfx_volume*100)}%</b></div>
+  <div class="row">${EVA.SFX_NAMES.map(n=>`<button data-sfxtest="${n}">${n.toUpperCase()}</button>`).join("")}</div>
+
+  <h3>ESTETICA</h3>
+  <div class="row">TEMA ${choice("theme","sunset","SUNSET")}${choice("theme","tron","TRON")}${choice("theme","pacman","PAC-MAN")}${choice("theme","vapor","VAPOR")}</div>
+  <div class="row">FUNDO ${choice("bg","synthwave","SYNTHWAVE COMPLETO")}${choice("bg","grid","SO A GRADE")}${choice("bg","none","NENHUM")}</div>
+  ${swHtml("bg_motion","FUNDO EM MOVIMENTO")}
+  ${swHtml("car","CONVERSIVEL NA ESTRADA","(SO NO FUNDO COMPLETO)")}
+  ${swHtml("scanlines","LINHAS DE MONITOR (CRT)")}
+  ${swHtml("vignette","VINHETA NAS BORDAS")}`;
+}
+document.addEventListener("click",async e=>{
+  if(screen!=="fx") return;
+  const u=e.target.closest("[data-ui]"); if(u){ setUi({[u.dataset.ui]:!S.ui[u.dataset.ui]}); return; }
+  const c=e.target.closest("[data-uiset]"); if(c){ setUi({[c.dataset.uiset]:c.dataset.v}); return; }
+  const t=e.target.closest("[data-sfxtest]"); if(t){ EVA.unlock(); EVA.sfx(t.dataset.sfxtest); return; }
+  if(e.target.closest("[data-rescan]")){ await loadMusic(); toast("LISTA ATUALIZADA"); return; }
+  if(e.target.closest("[data-openmusic]")){ try{ const r=await api("/api/music/open",{}); if(!r.opened) toast("ABRA A PASTA MANUALMENTE",true); }catch(err){ toast(err.message,true); } }
+});
+document.addEventListener("input",e=>{   // controle deslizante: ouve na hora enquanto arrasta, grava ao soltar
+  const r=e.target.closest("[data-rng]"); if(!r) return;
+  const k=r.dataset.rng, v=Number(r.value)/100; $("#v_"+k).textContent=r.value+"%";
+  EVA.configure({[k]:v});
+});
+document.addEventListener("change",e=>{
+  const r=e.target.closest("[data-rng]"); if(r) setUi({[r.dataset.rng]:Number(r.value)/100});
+});
+
+/* ---------- ATUALIZACOES ---------- */
+function renderUpd(){
+  if(!S) return; const up=S.update||{};
+  let status;
+  if(up.staged) status=`<div class="cost"><b>VERSAO ${esc(up.staged)} BAIXADA.</b> REINICIE O APP PARA APLICAR.</div><button class="go" data-updrestart>REINICIAR AGORA</button>`;
+  else if(!up.checked) status='<div class="note">AINDA NAO VERIFICADO NESTA ABERTURA.</div>';
+  else if(up.error) status=`<div class="cost warn">${esc(up.error)}</div>`;
+  else if(up.available) status=`<div class="cost"><b>NOVA VERSAO ${esc(up.version)} DISPONIVEL</b> (VOCE TEM ${esc(S.version)})<br>${esc(up.notes||"")}</div><button class="go" data-updinstall>BAIXAR E INSTALAR</button>`;
+  else status='<div class="cost"><b>VOCE JA ESTA NA VERSAO MAIS NOVA.</b></div>';
+  $("#updBody").innerHTML=`
+  <div class="row">VERSAO INSTALADA: <b style="color:var(--yellow)">V${esc(S.version)}</b></div>
+  <h3>ENDERECO DE ATUALIZACAO (HTTPS)</h3>
+  <div class="row"><input type="text" id="u_url" value="${esc(S.update_url)}" placeholder="https://.../update.json" style="width:100%"></div>
+  <div class="row"><button data-updsave>SALVAR ENDERECO</button><button class="go" data-updcheck>VERIFICAR AGORA</button></div>
+  ${status}
+  <h3>COMO FUNCIONA</h3>
+  <div class="note">1. QUEM MANTEM O APP PUBLICA UMA VERSAO NOVA E O ARQUIVO update.json NESSE ENDERECO.<br>2. AQUI VOCE CLICA EM VERIFICAR; SE HOUVER NOVA, CLICA EM BAIXAR E INSTALAR.<br>3. O PACOTE E CONFERIDO (SHA-256) ANTES DE USAR E SO ENTRA EM USO NA PROXIMA ABERTURA. NADA E BAIXADO SEM O SEU CLIQUE.<br>4. SE A NOVA VERSAO FALHAR AO ABRIR, O APP VOLTA SOZINHO PARA A ANTERIOR.</div>`;
+}
+document.addEventListener("click",async e=>{
+  if(screen!=="upd") return;
+  try{
+    if(e.target.closest("[data-updsave]")){ S=await api("/api/config",{update_url:$("#u_url").value.trim()}); toast("SALVO!"); renderUpd(); }
+    else if(e.target.closest("[data-updcheck]")){ toast("VERIFICANDO..."); S=await api("/api/update/check",{}); renderUpd(); }
+    else if(e.target.closest("[data-updinstall]")){ if(!confirm("BAIXAR A VERSAO "+S.update.version+"? ELA ENTRA EM USO NA PROXIMA ABERTURA.")) return; toast("BAIXANDO..."); S=await api("/api/update/install",{}); toast("BAIXADA!"); renderUpd(); }
+    else if(e.target.closest("[data-updrestart]")){ const r=await api("/api/update/restart",{}); if(!r.restarting) toast("FECHE E ABRA O APP DE NOVO",true); }
+  }catch(err){ toast(err.message,true); }
+});
+
+refresh();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# Dados de cada pessoa: NUNCA vao para o repositorio
+config.json
+secrets.json
+bot.db
+bot.log
+music/
+papi/
+updates/
+_pesquisa/
+
+# Gerados
+__pycache__/
+*.pyc
+.pytest_cache/
+.pytest_tmp/
+dist-update/
+build/
+dist/
+*.spec
