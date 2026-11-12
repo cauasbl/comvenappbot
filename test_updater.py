@@ -9,6 +9,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 import updater
+import version
 from updater import UpdateError
 from test_appmode import srv2  # noqa: F401  (fixture do pytest)
 from test_app import call
@@ -163,7 +164,7 @@ def test_update_endpoints_end_to_end(srv2, host, monkeypatch):  # noqa: F811
     assert call(port, "/api/config", {"update_url": url})[1]["update_url"] == url
     code, s = call(port, "/api/update/check", {})
     assert code == 200 and s["update"]["available"] is True and s["update"]["notes"] == "musicas novas"
-    assert s["version"] == "0.1.0" and s["update"]["staged"] is None
+    assert s["version"] == version.VERSION and s["update"]["staged"] is None
     code, s = call(port, "/api/update/install", {})
     assert code == 200 and s["update"]["staged"] == "0.2.0" and (tmp / "updates" / "0.2.0" / ".ok").is_file()
     assert call(port, "/api/update/restart", {})[1] == {"restarting": False}  # sem launcher (modo navegador)

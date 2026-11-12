@@ -307,7 +307,7 @@ def main() -> int:
     if not token:
         sys.exit("Defina TELEGRAM_BOT_TOKEN")
     cfg_path = "config.json"
-    cfg = json.loads(Path(cfg_path).read_text(encoding="utf-8"))
+    cfg = json.loads(Path(cfg_path).read_text(encoding="utf-8-sig"))  # aceita arquivo salvo com BOM
     import corners
     bot = Bot(Telegram(token), Store("bot.db"), cfg,
               scanner=lambda c: corners.run_live(c, progress=log.info), cfg_path=cfg_path)

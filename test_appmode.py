@@ -87,6 +87,22 @@ def test_build_reads_saved_key_without_overriding_env(tmp_path, monkeypatch):
 
 
 # ---- scan ao abrir + trava de orcamento ----
+def test_config_and_keys_saved_with_bom_still_load(tmp_path, monkeypatch):
+    """Notepad/PowerShell gravam JSON com BOM; isso ja derrubou o app ao abrir e nao pode se repetir."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.json").write_bytes(b"\xef\xbb\xbf" + json.dumps(base_cfg()).encode("utf-8"))
+    (tmp_path / "secrets.json").write_bytes(b"\xef\xbb\xbf" + json.dumps({"oddspapi_key": "dobom-12345678"}).encode())
+    monkeypatch.setenv("ODDSPAPI_KEY", "placeholder")
+    monkeypatch.delenv("ODDSPAPI_KEY")
+    a = app.build()
+    try:
+        assert a.bot.cfg["bankroll"] == base_cfg()["bankroll"]
+        assert app.os.environ["ODDSPAPI_KEY"] == "dobom-12345678"
+    finally:
+        a.bot.stop.set()
+        monkeypatch.delenv("ODDSPAPI_KEY", raising=False)
+
+
 def test_scan_blocked_without_key_when_required(srv2):
     a, *_ = srv2
     a.key_required = True

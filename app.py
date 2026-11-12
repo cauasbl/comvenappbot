@@ -237,7 +237,7 @@ def present(row: dict, cfg: dict | None = None) -> dict:
 # ---------- chaves (ficam num arquivo local do usuario; a API nunca as devolve) ----------
 def load_keys(path: str = SECRETS_FILE) -> dict:
     try:
-        d = json.loads(Path(path).read_text(encoding="utf-8"))
+        d = json.loads(Path(path).read_text(encoding="utf-8-sig"))
         return d if isinstance(d, dict) else {}
     except (OSError, ValueError):
         return {}
@@ -576,7 +576,7 @@ def make_handler(app: App):
 
 def build(config_path: str = "config.json", key_required: bool = False) -> App:
     """Monta bot + app (sem abrir porta). Chaves: variavel de ambiente tem prioridade; senao secrets.json."""
-    cfg = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    cfg = json.loads(Path(config_path).read_text(encoding="utf-8-sig"))  # -sig: aceita o BOM que o Bloco de Notas/PowerShell colocam
     keys = load_keys()
     if keys.get("oddspapi_key") and not os.environ.get("ODDSPAPI_KEY"):
         os.environ["ODDSPAPI_KEY"] = keys["oddspapi_key"]

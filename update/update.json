@@ -1,6 +1,6 @@
 {
-  "version": "0.1.0",
-  "url": "evcantos-0.1.0.zip",
-  "sha256": "cdb0a07d973783c91ee045ddd21df6173834cd458804a75dca8dcdb225bc5137",
-  "notes": "Primeira versao"
+  "version": "0.1.1",
+  "url": "evcantos-0.1.1.zip",
+  "sha256": "7625dae46b734c3d46af3fde894c1456c576687fae8ed47662001d7d39e0a440",
+  "notes": "Corrige o travamento ao abrir quando config.json ou secrets.json foram salvos com BOM (Bloco de Notas/PowerShell)."
 }
