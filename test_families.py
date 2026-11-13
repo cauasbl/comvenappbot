@@ -215,3 +215,31 @@ def test_scan_continues_after_an_isolated_error(monkeypatch):
 
     edges, calls, msgs = _scan_with(monkeypatch, odds)
     assert len(edges) == 4 and calls == ["fx1", "fx2", "fx3", "fx4", "fx5"]  # um erro isolado so pula aquele jogo
+
+
+# ---- filtros editaveis e log "BARRADO" ----
+def test_blocked_reason_branches():
+    e = corners.Edge(fixture="A x B", market="m", outcome="o", pin_odds=(2.0, 1.8), fair_prob=0.5,
+                     betano_odd=4.4, ev=0.12, stake=1.0, pin_age_min=1.0, suspicious=False, kelly_pct=0.02)
+    assert "odd fora de" in corners.blocked_reason(e, CFG)
+    e.betano_odd = 2.2
+    assert corners.blocked_reason(e, CFG) is None
+    assert "EV abaixo" in corners.blocked_reason(e, {**CFG, "min_ev": 0.5})
+    assert "Kelly" in corners.blocked_reason(e, {**CFG, "min_kelly_pct": 0.5})
+
+
+def test_scan_logs_barrado_when_ev_high_but_odd_out_of_range(monkeypatch):
+    edges, calls, msgs = _scan_with(
+        monkeypatch, lambda fid: fixture({"2": {"21": 3.80, "22": 1.30}}, {"2": {"21": 4.40, "22": 1.20}}))
+    assert edges == []
+    assert any("BARRADO" in m and "odd fora de" in m for m in msgs)
+    assert any("barrado pelos filtros" in m for m in msgs)
+
+
+def test_apply_config_odd_and_kelly_filters():
+    cfg = {"min_ev": 0.02, "max_ev": 0.15, "min_odd": 1.5, "max_odd": 3.5}
+    assert app.apply_config(cfg, {"min_odd": 1.2, "max_odd": 5, "min_kelly_pct": 0.01}) == []
+    assert (cfg["min_odd"], cfg["max_odd"], cfg["min_kelly_pct"]) == (1.2, 5, 0.01)
+    assert app.apply_config(cfg, {"min_odd": 6})  # min >= max e rejeitado
+    assert app.apply_config(cfg, {"min_kelly_pct": 0.9})  # fora do intervalo
+    assert cfg["min_odd"] == 1.2

@@ -253,6 +253,17 @@ def estimate_cost(cfg: dict) -> tuple[int, int]:
     return len(active_leagues(cfg)), int(cfg.get("max_fixtures", 10) or 0)
 
 
+def blocked_reason(e: Edge, cfg: dict) -> str | None:
+    """Por que um candidato (EV calculado sem filtros) nao virou alerta; None = passou. Mesma ordem do find_edges."""
+    if not cfg["min_odd"] <= e.betano_odd <= cfg["max_odd"]:
+        return f"odd fora de {cfg['min_odd']:g}-{cfg['max_odd']:g}"
+    if e.ev < cfg["min_ev"]:
+        return f"EV abaixo do minimo de {cfg['min_ev']:.1%}"
+    if e.kelly_pct < cfg.get("min_kelly_pct", 0.0):
+        return f"1/4 Kelly {e.kelly_pct:.2%} abaixo do minimo de {cfg.get('min_kelly_pct', 0.0):.2%}"
+    return None
+
+
 def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list[Edge]:
     """Varre as ligas ativas. O teto de jogos vale para TODAS as ligas juntas, pelos jogos mais proximos."""
     from oddspapi import Client, OddsPapiError
@@ -280,7 +291,7 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list
     if cap:
         pool = pool[:cap]
     progress(f"Olhando {len(pool)} jogo(s), os mais proximos primeiro")
-    edges, failures = [], 0
+    edges, failures, blocked = [], 0, 0
     try:
         for i, (_, f) in enumerate(pool, 1):
             try:
@@ -299,12 +310,23 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list
             # transparencia: quantas linhas deu para comparar e o melhor EV visto, mesmo abaixo dos filtros
             seen = find_edges(data, meta, {**cfg, "min_ev": -1.0, "min_kelly_pct": -1.0, "min_odd": 1.0,
                                            "max_odd": 1000.0, "max_ev": 1e9})
-            best = f"{max(e.ev for e in seen):+.1%}" if seen else "-"
+            top = max(seen, key=lambda e: e.ev) if seen else None
+            best = f"{top.ev:+.1%}" if top else "-"
+            note = ""
+            if top and top.ev >= cfg["min_ev"] and (top.market_id, top.outcome_id) not in {
+                    (e.market_id, e.outcome_id) for e in found}:
+                why = blocked_reason(top, cfg)
+                if why:  # o melhor EV e calculado SEM filtros: aqui diz qual linha foi barrada e por que
+                    blocked += 1
+                    note = f" [BARRADO: {top.market} {top.outcome} @ {top.betano_odd:.2f} - {why}]"
             progress(f"[{i}/{len(pool)}] {f.get('participant1Name', '?')} x {f.get('participant2Name', '?')}"
                      f" -> {len(found)} sinal(is) | {len({e.market_id for e in seen})} linhas comparadas,"
-                     f" melhor EV {best}")
+                     f" melhor EV {best}{note}")
     except Exception as e:  # noqa: BLE001 - qualquer falha no meio nunca pode jogar fora o que ja foi achado
         progress(f"ERRO: {e} - os {len(edges)} sinal(is) ja encontrado(s) foram mantidos")
+    if blocked:
+        progress(f"{blocked} jogo(s) tinham candidato com EV acima do minimo, barrado pelos filtros "
+                 f"(veja as linhas BARRADO; ajuste em CONFIGURACOES > BANCA E FILTROS).")
     progress(f"Consultas nesta execucao: {c.session_requests} | neste mes (esta chave): {c.used_this_month()}")
     return sorted(edges, key=lambda x: -x.ev)
 

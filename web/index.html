@@ -350,18 +350,22 @@ function renderCfg(){
   <div class="row">${preset([0,30,60,120,240,360,720],iv,"scan_interval_min",v=>v?(v>=60?v/60+"H":v+"MIN"):"OFF","MINUTOS")}</div>
   <div class="note">CADA VARREDURA GASTA CONSULTAS DO PLANO. OS ALERTAS APARECEM AQUI NO APP (E NO TELEGRAM, SE ESTIVER LIGADO).</div>
 
-  <h3>BANCA E FILTROS</h3>
-  <div class="row">BANCA <input type="number" id="c_bankroll" value="${c.bankroll}" step="50"> <button data-apply="bankroll">OK</button>
-  &nbsp; EV MINIMO % <input type="number" id="c_min_ev" value="${(c.min_ev*100).toFixed(1)}" step="0.5" style="width:100px"> <button data-apply="min_ev_pct">OK</button></div>`;
+  <h3>BANCA E FILTROS (O QUE PODE VIRAR ALERTA)</h3>
+  <div class="row">BANCA <input type="number" id="c_bankroll" value="${c.bankroll}" step="50"> <button data-apply="bankroll">OK</button></div>
+  <div class="row">EV MINIMO % <input type="number" id="c_min_ev" value="${(c.min_ev*100).toFixed(1)}" step="0.5" style="width:100px"> <button data-applypct="min_ev">OK</button>
+  &nbsp; EV MAXIMO % <input type="number" id="c_max_ev" value="${(c.max_ev*100).toFixed(0)}" step="1" style="width:100px"> <button data-applypct="max_ev">OK</button></div>
+  <div class="row">ODD MINIMA <input type="number" id="c_min_odd" value="${c.min_odd}" step="0.1" style="width:100px"> <button data-apply="min_odd">OK</button>
+  &nbsp; ODD MAXIMA <input type="number" id="c_max_odd" value="${c.max_odd}" step="0.5" style="width:100px"> <button data-apply="max_odd">OK</button></div>
+  <div class="row">1/4 KELLY MINIMO % <input type="number" id="c_min_kelly_pct" value="${(c.min_kelly_pct*100).toFixed(2)}" step="0.1" style="width:100px"> <button data-applypct="min_kelly_pct">OK</button></div>
+  <div class="note">A ODD E A DA BETANO. EV ACIMA DO MAXIMO VIRA "SUSPEITO" (PROVAVEL ERRO DE LINHA) E NAO ENTRA NOS ALERTAS. NO LOG DO SCAN, CADA JOGO MOSTRA O MELHOR CANDIDATO E, SE FOI BARRADO, QUAL LINHA E POR QUE.</div>`;
 }
 document.addEventListener("click",async e=>{
   if(screen!=="config") return;
   const s=e.target.closest("[data-set]"); if(s){setCfg({[s.dataset.set]:Number(s.dataset.v)});return;}
-  const a=e.target.closest("[data-apply]"); if(a){
-    const k=a.dataset.apply; let v;
-    if(k==="min_ev_pct") v=["min_ev",Number($("#c_min_ev").value)/100]; else v=[k,Number($("#c_"+k).value)];
-    if(Number.isNaN(v[1])||$("#c_"+(k==="min_ev_pct"?"min_ev":k)).value==="") return toast("VALOR INVALIDO",true);
-    setCfg({[v[0]]:v[1]}); return;}
+  const a=e.target.closest("[data-apply],[data-applypct]"); if(a){
+    const pct=a.dataset.applypct!==undefined, k=pct?a.dataset.applypct:a.dataset.apply, el=$("#c_"+k), n=Number(el.value);
+    if(el.value===""||Number.isNaN(n)) return toast("VALOR INVALIDO",true);
+    setCfg({[k]:pct?n/100:n}); return;}
   const sk=e.target.closest("[data-savekey]"); if(sk){
     const k=sk.dataset.savekey, v=$(k==="oddspapi_key"?"#k_odds":"#k_tg").value.trim();
     if(!v) return toast("COLE O VALOR PRIMEIRO",true);

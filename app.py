@@ -45,6 +45,9 @@ NUMERIC = {
     "bankroll": (float, 1.0, 1e9),
     "min_ev": (float, 0.0, 1.0),
     "max_ev": (float, 0.01, 5.0),
+    "min_odd": (float, 1.01, 100.0),  # faixa de odds da Betano que pode virar alerta
+    "max_odd": (float, 1.01, 1000.0),
+    "min_kelly_pct": (float, 0.0, 0.2),  # 1/4 Kelly minimo (fracao da banca; 0.005 = 0,5%)
     "window_hours": (float, 1.0, 336.0),
     "max_fixtures": (int, 0, 200),  # 0 = todos os jogos da janela
     "scan_interval_min": (int, 0, 10080),  # 0 = varredura automatica desligada
@@ -134,6 +137,8 @@ def apply_config(cfg: dict, patch: dict) -> list[str]:
     merged = {**cfg, **clean}
     if not errors and merged["min_ev"] >= merged["max_ev"]:
         errors.append("min_ev precisa ser menor que max_ev")
+    if not errors and merged.get("min_odd", 1.5) >= merged.get("max_odd", 3.5):
+        errors.append("min_odd precisa ser menor que max_odd")
     if fam_patch is not None:
         if (not isinstance(fam_patch, dict) or any(k not in corners.FAMILIES for k in fam_patch)
                 or any(not isinstance(v, bool) for v in fam_patch.values())):

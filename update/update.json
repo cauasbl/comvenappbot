@@ -1,6 +1,6 @@
 {
-  "version": "0.1.2",
-  "url": "evcantos-0.1.2.zip",
-  "sha256": "28217a3713ea970b576f27bb2f35561be1133da07c2909218bccbea63d264fbb",
-  "notes": "Remove o limite mensal de consultas que o app inventava e bloqueava a varredura. O contador agora e por chave (chave nova = zero) e so informativo. Se algo falhar no meio da varredura, os sinais ja encontrados sao mantidos."
+  "version": "0.1.3",
+  "url": "evcantos-0.1.3.zip",
+  "sha256": "7eb885929e4a3cc92ec5d35306f77349e08da432dd512ab16113fa5d14b6df06",
+  "notes": "Filtros editaveis (odd min/max, EV max, Kelly min) e log mostra qual linha foi barrada e por que"
 }
