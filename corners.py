@@ -191,7 +191,7 @@ def find_edges(fixture: dict, meta: dict[str, dict], cfg: dict, now: datetime | 
             e = ev(p, odd)
             if e < cfg["min_ev"]:
                 continue
-            kpct = stake_pct(p, odd, cfg["kelly_fraction"], cfg.get("kelly_mode", "ev"))
+            kpct = stake_pct(p, odd, cfg["kelly_fraction"], cfg.get("kelly_mode", "classic"))
             if kpct < cfg.get("min_kelly_pct", 0.0):
                 continue
             edges.append(Edge(

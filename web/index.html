@@ -358,11 +358,13 @@ function renderCfg(){
   &nbsp; ODD MAXIMA <input type="number" id="c_max_odd" value="${c.max_odd}" step="0.5" style="width:100px"> <button data-apply="max_odd">OK</button></div>
   <div class="row">1/4 KELLY MINIMO % <input type="number" id="c_min_kelly_pct" value="${(c.min_kelly_pct*100).toFixed(2)}" step="0.1" style="width:100px"> <button data-applypct="min_kelly_pct">OK</button></div>
   <div class="row">TETO DE STAKE % DA BANCA (0 = SEM TETO) <input type="number" id="c_stake_cap_pct" value="${((c.stake_cap_pct||0)*100).toFixed(1)}" step="0.5" style="width:100px"> <button data-applypct="stake_cap_pct">OK</button></div>
-  <div class="note">STAKE = 1/4 x EV x BANCA (EV 8% = 2% DA BANCA). A ODD E A DA BETANO. EV ACIMA DO MAXIMO VIRA "SUSPEITO" (PROVAVEL ERRO DE LINHA) E NAO ENTRA NOS ALERTAS. NO LOG DO SCAN, CADA JOGO MOSTRA O MELHOR CANDIDATO E, SE FOI BARRADO, QUAL LINHA E POR QUE.</div>`;
+  <div class="row">METODO DA STAKE <button data-kmode="classic" class="${c.kelly_mode!=='ev'?'on':''}">KELLY CLASSICO</button> <button data-kmode="ev" class="${c.kelly_mode==='ev'?'on':''}">1/4 x EV</button></div>
+  <div class="note">CLASSICO: 1/4 x EV/(ODD-1) (MENOR EM ODD LONGA). 1/4 x EV: EV 8% = 2% DA BANCA EM QUALQUER ODD. TROCAR RECALCULA OS PENDENTES NA HORA. A ODD E A DA BETANO. EV ACIMA DO MAXIMO VIRA "SUSPEITO" (PROVAVEL ERRO DE LINHA) E NAO ENTRA NOS ALERTAS. NO LOG DO SCAN, CADA JOGO MOSTRA O MELHOR CANDIDATO E, SE FOI BARRADO, QUAL LINHA E POR QUE.</div>`;
 }
 document.addEventListener("click",async e=>{
   if(screen!=="config") return;
   const s=e.target.closest("[data-set]"); if(s){setCfg({[s.dataset.set]:Number(s.dataset.v)});return;}
+  const km=e.target.closest("[data-kmode]"); if(km){ setCfg({kelly_mode:km.dataset.kmode}); return;}
   const a=e.target.closest("[data-apply],[data-applypct]"); if(a){
     const pct=a.dataset.applypct!==undefined, k=pct?a.dataset.applypct:a.dataset.apply, el=$("#c_"+k), n=Number(el.value);
     if(el.value===""||Number.isNaN(n)) return toast("VALOR INVALIDO",true);

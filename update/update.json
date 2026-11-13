@@ -1,6 +1,6 @@
 {
-  "version": "0.1.4",
-  "url": "evcantos-0.1.4.zip",
-  "sha256": "77d64c5f8b41c363f96d90d45917a71cda73c395d2c374ca6c075aeb7440895c",
-  "notes": "Stake = 1/4 x EV (EV 8% = 2% da banca), teto de stake opcional e editavel"
+  "version": "0.1.5",
+  "url": "evcantos-0.1.5.zip",
+  "sha256": "7f8badd4c59cee1e8fc46bc460cc02d04bb81a256401026d0bdd1d508aa6da9e",
+  "notes": "Seletor do metodo de stake: Kelly classico ou 1/4 x EV; pendentes recalculam na hora"
 }

@@ -17,6 +17,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from core import stake_pct
 from store import Store
 from tg import Telegram, TelegramError
 
@@ -63,7 +64,10 @@ def decision_buttons(aid: int) -> list:
 def current_stake(a: dict, cfg: dict) -> float:
     """Stake com a banca ATUAL. O valor gravado no alerta usa a banca da epoca em que ele foi criado."""
     cap = cfg.get("stake_cap_pct", 0.0)  # 0 = sem teto
-    pct = min(a["kelly_pct"], cap) if cap else a["kelly_pct"]
+    pct = a["kelly_pct"]
+    if a.get("fair_prob") and a.get("betano_odd"):  # metodo escolhido AGORA (classico ou 1/4 x EV)
+        pct = stake_pct(a["fair_prob"], a["betano_odd"], cfg.get("kelly_fraction", 0.25), cfg.get("kelly_mode", "classic"))
+    pct = min(pct, cap) if cap else pct
     return round(pct * cfg["bankroll"], 2)
 
 

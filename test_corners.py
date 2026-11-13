@@ -60,7 +60,7 @@ def test_finds_value_over_and_stake():
     e = edges[0]
     assert e.outcome == "Over" and e.betano_odd == 2.30
     assert 0.07 < e.ev < 0.11
-    assert e.stake == pytest.approx(1000 * 0.25 * e.ev, abs=0.01)  # 1/4 do EV, sem teto
+    assert e.stake == pytest.approx(1000 * 0.25 * e.ev / (2.30 - 1), abs=0.01)  # Kelly classico (padrao), sem teto
     assert not e.suspicious
     assert e.pin_age_min == pytest.approx(60.0)
 

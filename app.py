@@ -24,6 +24,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 import bot as botmod
+from core import stake_pct
 import corners
 import updater
 import version
@@ -113,6 +114,12 @@ def apply_config(cfg: dict, patch: dict) -> list[str]:
     patch = dict(patch)
     fam_patch = patch.pop("families", None)
     ui_patch = patch.pop("ui", None)
+    if "kelly_mode" in patch:
+        m = patch.pop("kelly_mode")
+        if m in ("classic", "ev"):
+            clean["kelly_mode"] = m
+        else:
+            errors.append("kelly_mode: use 'classic' ou 'ev'")
     if "update_url" in patch:
         u = patch.pop("update_url")
         if isinstance(u, str) and (not u.strip() or url_ok(u)):
@@ -236,6 +243,9 @@ def present(row: dict, cfg: dict | None = None) -> dict:
     if r.get("status") == "bet" and r.get("bet_stake") is not None:
         r["stake"] = r["bet_stake"]
     elif cfg is not None and r.get("status") == "pending" and r.get("kelly_pct") is not None:
+        if r.get("fair_prob") and r.get("betano_odd"):  # recalcula com o metodo escolhido agora (sem novo scan)
+            r["kelly_pct"] = stake_pct(r["fair_prob"], r["betano_odd"], cfg.get("kelly_fraction", 0.25),
+                                       cfg.get("kelly_mode", "classic"))
         r["stake"] = botmod.current_stake(r, cfg)
     return r
 
@@ -341,7 +351,7 @@ class App:
         counts["expired"] = sum(1 for r in pend if has_started(r))
         counts["pending"] = len(pend) - counts["expired"]
         return {
-            "config": {k: cfg.get(k) for k in NUMERIC},
+            "config": {**{k: cfg.get(k) for k in NUMERIC}, "kelly_mode": cfg.get("kelly_mode", "classic")},
             "leagues": leagues,
             "families": [{"key": k, "label": lbl, "enabled": k in corners.enabled_families(cfg)}
                          for k, lbl in corners.FAMILIES.items()],
