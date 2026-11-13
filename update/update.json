@@ -1,6 +1,6 @@
 {
-  "version": "0.1.3",
-  "url": "evcantos-0.1.3.zip",
-  "sha256": "7eb885929e4a3cc92ec5d35306f77349e08da432dd512ab16113fa5d14b6df06",
-  "notes": "Filtros editaveis (odd min/max, EV max, Kelly min) e log mostra qual linha foi barrada e por que"
+  "version": "0.1.4",
+  "url": "evcantos-0.1.4.zip",
+  "sha256": "77d64c5f8b41c363f96d90d45917a71cda73c395d2c374ca6c075aeb7440895c",
+  "notes": "Stake = 1/4 x EV (EV 8% = 2% da banca), teto de stake opcional e editavel"
 }

@@ -62,7 +62,9 @@ def decision_buttons(aid: int) -> list:
 
 def current_stake(a: dict, cfg: dict) -> float:
     """Stake com a banca ATUAL. O valor gravado no alerta usa a banca da epoca em que ele foi criado."""
-    return round(min(a["kelly_pct"], cfg.get("max_stake_pct", 0.02)) * cfg["bankroll"], 2)
+    cap = cfg.get("stake_cap_pct", 0.0)  # 0 = sem teto
+    pct = min(a["kelly_pct"], cap) if cap else a["kelly_pct"]
+    return round(pct * cfg["bankroll"], 2)
 
 
 def league_enabled(v) -> bool:

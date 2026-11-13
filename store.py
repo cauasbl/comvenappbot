@@ -66,6 +66,10 @@ class Store:
                      e.outcome_id, e.outcome, json.dumps(list(e.pin_odds)), e.fair_prob, e.betano_odd, e.ev,
                      e.kelly_pct, e.stake))
             except sqlite3.IntegrityError:
+                # mesmo sinal ja gravado: atualiza os numeros se ainda estiver pendente (ex.: formula de stake mudou)
+                self.db.execute("UPDATE alerts SET fair_prob=?, ev=?, kelly_pct=?, stake=? WHERE key=? AND status='pending'",
+                                (e.fair_prob, e.ev, e.kelly_pct, e.stake, self.key_of(e)))
+                self.db.commit()
                 return None
             self.db.commit()
             return cur.lastrowid

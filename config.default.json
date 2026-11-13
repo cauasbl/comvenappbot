@@ -1,7 +1,7 @@
 {
   "bankroll": 1000,
   "kelly_fraction": 0.25,
-  "max_stake_pct": 0.02,
+  "stake_cap_pct": 0.0,
   "min_ev": 0.03,
   "min_kelly_pct": 0.005,
   "max_ev": 0.15,

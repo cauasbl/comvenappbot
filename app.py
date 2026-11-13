@@ -47,6 +47,7 @@ NUMERIC = {
     "max_ev": (float, 0.01, 5.0),
     "min_odd": (float, 1.01, 100.0),  # faixa de odds da Betano que pode virar alerta
     "max_odd": (float, 1.01, 1000.0),
+    "stake_cap_pct": (float, 0.0, 1.0),  # teto de stake (fracao da banca); 0 = sem teto
     "min_kelly_pct": (float, 0.0, 0.2),  # 1/4 Kelly minimo (fracao da banca; 0.005 = 0,5%)
     "window_hours": (float, 1.0, 336.0),
     "max_fixtures": (int, 0, 200),  # 0 = todos os jogos da janela

@@ -11,7 +11,16 @@ def test_current_stake_uses_current_bankroll_and_cap():
     row = {"kelly_pct": 0.0099}
     assert current_stake(row, {"bankroll": 1000, "max_stake_pct": 0.02}) == 9.9
     assert current_stake(row, {"bankroll": 5000, "max_stake_pct": 0.02}) == 49.5
-    assert current_stake({"kelly_pct": 0.05}, {"bankroll": 5000, "max_stake_pct": 0.02}) == 100.0  # teto de 2%
+    assert current_stake({"kelly_pct": 0.05}, {"bankroll": 5000, "stake_cap_pct": 0.02}) == 100.0  # teto opcional de 2%
+    assert current_stake({"kelly_pct": 0.05}, {"bankroll": 5000}) == 250.0  # sem teto por padrao
+
+
+def test_stake_is_quarter_of_ev_example_from_screenshot():
+    from core import stake_pct
+    p = 1 / 1.75  # odd justa 1.75, Betano 1.90 -> EV +8.57%
+    assert stake_pct(p, 1.90) == pytest.approx(0.25 * 0.0857, abs=1e-4)  # 2,14% da banca, nao 2,37%
+    assert current_stake({"kelly_pct": stake_pct(p, 1.90)}, {"bankroll": 5000}) == pytest.approx(107.14, abs=0.05)
+    assert stake_pct(p, 1.90, mode="classic") == pytest.approx(0.0238, abs=1e-4)  # formula antiga, opcional
 
 
 def test_store_decide_records_given_stake_else_alert_stake(tmp_path):
@@ -48,3 +57,16 @@ def test_telegram_button_records_current_stake(srv):  # noqa: F811
     bot.handle({"update_id": 1, "callback_query": {"id": "c", "data": f"bet:{aid}",
                                                    "message": {"chat": {"id": 111}, "message_id": 5}}})
     assert bot.store.alert(aid)["bet_stake"] == pytest.approx(49.5)
+
+
+def test_rescan_refreshes_pending_numbers_but_not_decided(tmp_path):
+    s = Store(str(tmp_path / "r.db"))
+    aid = s.add_alert(make_edge(ev=0.09))
+    e2 = make_edge(ev=0.09)
+    e2.kelly_pct, e2.stake = 0.0225, 22.5
+    assert s.add_alert(e2) is None and s.alert(aid)["kelly_pct"] == 0.0225  # pendente: atualizado
+    s.decide(aid, "bet")
+    e3 = make_edge(ev=0.09)
+    e3.kelly_pct = 0.5
+    s.add_alert(e3)
+    assert s.alert(aid)["kelly_pct"] == 0.0225  # ja apostado: preservado

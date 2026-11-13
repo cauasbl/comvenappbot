@@ -17,7 +17,13 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from core import devig, ev, kelly_full, kelly_stake
+from core import devig, ev, stake_pct
+
+
+def _capped(pct: float, cfg: dict) -> float:
+    """Aplica o teto opcional de stake (stake_cap_pct; 0 ou ausente = sem teto)."""
+    cap = cfg.get("stake_cap_pct", 0.0)
+    return min(pct, cap) if cap else pct
 
 
 @dataclass
@@ -185,7 +191,7 @@ def find_edges(fixture: dict, meta: dict[str, dict], cfg: dict, now: datetime | 
             e = ev(p, odd)
             if e < cfg["min_ev"]:
                 continue
-            kpct = kelly_full(p, odd) * cfg["kelly_fraction"]
+            kpct = stake_pct(p, odd, cfg["kelly_fraction"], cfg.get("kelly_mode", "ev"))
             if kpct < cfg.get("min_kelly_pct", 0.0):
                 continue
             edges.append(Edge(
@@ -196,7 +202,7 @@ def find_edges(fixture: dict, meta: dict[str, dict], cfg: dict, now: datetime | 
                 fair_prob=p,
                 betano_odd=odd,
                 ev=e,
-                stake=kelly_stake(p, odd, cfg["bankroll"], cfg["kelly_fraction"], cfg["max_stake_pct"]),
+                stake=round(_capped(kpct, cfg) * cfg["bankroll"], 2),
                 pin_age_min=_age_min(spr[oid][1], now),
                 suspicious=e > cfg["max_ev"],
                 kelly_pct=kpct,

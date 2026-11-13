@@ -69,7 +69,7 @@ def test_kelly_pct_and_ids_populated():
     f.update(fixtureId="fx9", startTime="2026-11-12T19:45:00.000Z")
     e = find_edges(f, meta, CFG, NOW)[0]
     assert e.fixture_id == "fx9" and e.market_id == "1" and e.outcome_id == "11"
-    assert e.kelly_pct == pytest.approx(0.25 * (0.4737 * 2.3 - 1) / 1.3, abs=1e-3)
+    assert e.kelly_pct == pytest.approx(0.25 * e.ev, abs=1e-9)
 
 
 def test_active_leagues_respects_enabled_and_legacy():

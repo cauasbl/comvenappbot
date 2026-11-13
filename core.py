@@ -72,6 +72,13 @@ def kelly_full(p_fair: float, odd: float) -> float:
     return max(0.0, (p_fair * odd - 1.0) / (odd - 1.0))
 
 
+def stake_pct(p_fair: float, odd: float, fraction: float = 0.25, mode: str = "ev") -> float:
+    """% da banca. Modo 'ev' (padrao): fracao x EV (EV 8% -> 2%). Modo 'classic': fracao x Kelly cheio (EV/(odd-1))."""
+    if mode == "classic":
+        return kelly_full(p_fair, odd) * fraction
+    return max(0.0, ev(p_fair, odd)) * fraction
+
+
 def kelly_stake(
     p_fair: float,
     odd: float,
