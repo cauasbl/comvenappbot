@@ -1,6 +1,6 @@
 {
-  "version": "0.1.1",
-  "url": "evcantos-0.1.1.zip",
-  "sha256": "7625dae46b734c3d46af3fde894c1456c576687fae8ed47662001d7d39e0a440",
-  "notes": "Corrige o travamento ao abrir quando config.json ou secrets.json foram salvos com BOM (Bloco de Notas/PowerShell)."
+  "version": "0.1.2",
+  "url": "evcantos-0.1.2.zip",
+  "sha256": "28217a3713ea970b576f27bb2f35561be1133da07c2909218bccbea63d264fbb",
+  "notes": "Remove o limite mensal de consultas que o app inventava e bloqueava a varredura. O contador agora e por chave (chave nova = zero) e so informativo. Se algo falhar no meio da varredura, os sinais ja encontrados sao mantidos."
 }

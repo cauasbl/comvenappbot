@@ -13,7 +13,6 @@
   "soft": "betano",
   "include_handicap": false,
   "window_hours": 24,
-  "monthly_request_limit": 200,
   "max_fixtures": 10,
   "scan_interval_min": 0,
   "update_url": "https://raw.githubusercontent.com/cauasbl/comvenappbot/main/update/update.json",

@@ -320,7 +320,7 @@ class App:
                 key = os.environ.get("ODDSPAPI_KEY")
                 if not key:
                     raise RuntimeError("cadastre a chave do OddsPapi para buscar campeonatos")
-                self._tourn = Client(key, self.cache_dir, self.bot.cfg["monthly_request_limit"]).tournaments(10)
+                self._tourn = Client(key, self.cache_dir).tournaments(10)
         return self._tourn
 
     def state(self) -> dict:
@@ -339,7 +339,7 @@ class App:
             "leagues": leagues,
             "families": [{"key": k, "label": lbl, "enabled": k in corners.enabled_families(cfg)}
                          for k, lbl in corners.FAMILIES.items()],
-            "budget": {"used": budget_used(self.cache_dir), "limit": cfg["monthly_request_limit"]},
+            "budget": {"used": budget_used(self.cache_dir)},  # so informativo: consultas feitas pelo app, com a chave atual
             "cost": {"lists": lists, "cap": cap},
             "auto": {"interval": iv, "next_in": max(0, int(nxt - time.time())) if iv and nxt else None},
             "telegram": {"enabled": bool(b.tg), "linked": bool(b.chat)},
@@ -361,18 +361,14 @@ class App:
             rows = store.list_alerts(status, ids, limit)
         return [present(r, self.bot.cfg) for r in rows]
 
-    def start_scan(self, force: bool = False) -> dict:
+    def start_scan(self) -> dict:
         """Inicia uma varredura em segundo plano (so quando o usuario pede ou o agendador manda).
-        Devolve {started, reason?}. Nao gasta consulta se a trava de orcamento barrar (a menos que force)."""
-        cfg = self.bot.cfg
+        Devolve {started, reason?}. O app NAO recusa varredura por conta propria (nao adivinha o saldo do plano):
+        se a cota da OddsPapi acabar, a propria API devolve erro e a varredura mantem o que ja achou."""
         if self.bot.lock.locked():
             return {"started": False, "reason": "running"}
         if self.key_required and not self.has_key():
             return {"started": False, "reason": "nokey"}
-        lists, cap = corners.estimate_cost(cfg)
-        left = cfg["monthly_request_limit"] - budget_used(self.cache_dir)
-        if cap and lists + cap > left and not force:
-            return {"started": False, "reason": "budget", "need": lists + cap, "left": max(left, 0)}
         threading.Thread(target=self._scan_thread, daemon=True).start()
         return {"started": True}
 
@@ -537,7 +533,7 @@ def make_handler(app: App):
                         return self._send(400, {"errors": errs})
                     return self._send(200, app.state())
                 if path == "/api/scan":
-                    return self._send(200, app.start_scan(force=bool(body.get("force"))))
+                    return self._send(200, app.start_scan())
                 if path == "/api/music/open":
                     opener = getattr(os, "startfile", None)  # so existe no Windows
                     if opener:

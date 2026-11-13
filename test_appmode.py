@@ -1,4 +1,5 @@
 import dataclasses
+import io
 import json
 import re
 import threading
@@ -109,15 +110,54 @@ def test_scan_blocked_without_key_when_required(srv2):
     assert a.start_scan() == {"started": False, "reason": "nokey"}
 
 
-def test_scan_budget_guard_and_force(srv2):
-    a, bot, port, edges, _ = srv2
-    bot.cfg["monthly_request_limit"] = 5  # custo maximo (2 listas + 10 jogos = 12) passa do saldo
-    r = a.start_scan()
-    assert r == {"started": False, "reason": "budget", "need": 12, "left": 5}
-    assert call(port, "/api/scan", {})[1]["reason"] == "budget"
-    assert call(port, "/api/scan", {"force": True})[1] == {"started": True}
+def test_scan_is_never_blocked_by_a_local_counter(srv2):
+    a, bot, port, edges, tmp = srv2
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    (tmp / "papi" / ".budget.json").write_text(json.dumps({month: 200}))  # contador antigo "estourado"
+    assert a.start_scan() == {"started": True}  # antes: recusava com "limite mensal de 200 consultas atingido"
     wait_scan(bot)
-    assert bot.last_result is not None
+    assert bot.last_result is not None and "error" not in bot.last_result
+    assert "limit" not in call(port, "/api/state")[1]["budget"]  # a tela nao inventa um teto
+
+
+def test_counter_is_per_key_so_a_new_key_starts_from_zero(tmp_path, monkeypatch):
+    import oddspapi
+    d = tmp_path / "papi"
+    d.mkdir()
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    (d / ".budget.json").write_text(json.dumps({month: 200}))  # formato antigo: nao pertence a chave nenhuma
+    assert oddspapi.budget_used(str(d), "chave-nova-12345678") == 0
+    a = oddspapi.Client("chave-A-12345678", cache_dir=str(d), min_interval=0)
+    b = oddspapi.Client("chave-B-12345678", cache_dir=str(d), min_interval=0)
+    for _ in range(3):
+        a._count()
+    b._count()
+    assert oddspapi.budget_used(str(d), "chave-A-12345678") == 3 and a.used_this_month() == 3
+    assert oddspapi.budget_used(str(d), "chave-B-12345678") == 1
+    for _ in range(300):  # contagem enorme nunca bloqueia: o cliente continua fazendo a consulta
+        a._count()
+
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *e):
+            return False
+
+    monkeypatch.setattr(oddspapi.urllib.request, "urlopen", lambda url, timeout=0: Resp(b"[]"))
+    assert a.fixtures(1) == [] and a.session_requests >= 300
+
+
+def test_network_failure_is_a_normal_error_not_a_crash(tmp_path, monkeypatch):
+    import oddspapi
+    c = oddspapi.Client("chave-12345678", cache_dir=str(tmp_path), min_interval=0)
+
+    def boom(url, timeout=0):
+        raise oddspapi.urllib.error.URLError("sem internet")
+
+    monkeypatch.setattr(oddspapi.urllib.request, "urlopen", boom)
+    with pytest.raises(oddspapi.OddsPapiError, match="falha de rede"):
+        c.odds("fx", ["pinnacle"])
 
 
 def test_scan_only_starts_when_asked(srv2):

@@ -30,7 +30,7 @@ def make_edge(odd=2.30, suspicious=False, market_id="1", ev=0.09):
     return Edge(fixture="A x B", market="Corners - Over Under Full Time 9.5", outcome="Over",
                 pin_odds=(2.0, 1.8), fair_prob=0.4737, betano_odd=odd, ev=ev, stake=9.9,
                 pin_age_min=5.0, suspicious=suspicious, kelly_pct=0.0099, fixture_id="fx1",
-                market_id=market_id, outcome_id="11", start_time="2026-11-12T19:45:00.000Z")
+                market_id=market_id, outcome_id="11", start_time="2999-01-01T19:45:00.000Z")  # futuro: o teste nao depende do relogio
 
 
 @pytest.fixture
@@ -95,7 +95,7 @@ def test_format_alert_contents(tmp_path):
     s = Store(str(tmp_path / "f.db"))
     row = s.alert(s.add_alert(make_edge()))
     t = format_alert(row, "FOOT")
-    assert "A x B" in t and "2.30" in t and "+9.0%" in t and "FOOT" in t and "2026-11-12 19:45 UTC" in t
+    assert "A x B" in t and "2.30" in t and "+9.0%" in t and "FOOT" in t and "2999-01-01 19:45 UTC" in t
 
 
 # ---- bot ----

@@ -255,22 +255,20 @@ def estimate_cost(cfg: dict) -> tuple[int, int]:
 
 def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list[Edge]:
     """Varre as ligas ativas. O teto de jogos vale para TODAS as ligas juntas, pelos jogos mais proximos."""
-    from oddspapi import BudgetExceeded, Client, OddsPapiError
+    from oddspapi import Client, OddsPapiError
     key = os.environ.get("ODDSPAPI_KEY")
     if not key:
         raise RuntimeError("Defina ODDSPAPI_KEY")
-    c = Client(key, monthly_limit=cfg["monthly_request_limit"])
+    c = Client(key)
     cap = int(cfg.get("max_fixtures", 10) or 0) if max_fixtures is None else max_fixtures
     meta = market_meta(c.markets(10), enabled_families(cfg), cfg.get("include_handicap", False))
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(hours=cfg["window_hours"])
-    progress(f"Consultas usadas no mes: {c.used_this_month()}/{cfg['monthly_request_limit']}")
+    progress(f"Consultas ja feitas pelo app neste mes (esta chave): {c.used_this_month()}")
     pool = []
     for league, tid in active_leagues(cfg).items():
         try:
             listed = c.fixtures(tid)
-        except BudgetExceeded:
-            raise
         except OddsPapiError as e:  # uma liga com problema nao derruba a varredura inteira
             progress(f"{league}: ERRO ao listar jogos ({e}); pulando")
             continue
@@ -282,26 +280,32 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list
     if cap:
         pool = pool[:cap]
     progress(f"Olhando {len(pool)} jogo(s), os mais proximos primeiro")
-    edges = []
-    for i, (_, f) in enumerate(pool, 1):
-        try:
-            data = c.odds(f["fixtureId"], [cfg["sharp"], cfg["soft"]])
-        except BudgetExceeded:
-            raise
-        except OddsPapiError as e:
-            progress(f"[{i}/{len(pool)}] ERRO nas odds ({e}); pulando")
-            continue
-        data.update({k: f[k] for k in ("participant1Name", "participant2Name") if k in f})
-        found = find_edges(data, meta, cfg)
-        edges += found
-        # transparencia: quantas linhas deu para comparar e o melhor EV visto, mesmo abaixo dos filtros
-        seen = find_edges(data, meta, {**cfg, "min_ev": -1.0, "min_kelly_pct": -1.0, "min_odd": 1.0,
-                                       "max_odd": 1000.0, "max_ev": 1e9})
-        best = f"{max(e.ev for e in seen):+.1%}" if seen else "-"
-        progress(f"[{i}/{len(pool)}] {f.get('participant1Name', '?')} x {f.get('participant2Name', '?')}"
-                 f" -> {len(found)} sinal(is) | {len({e.market_id for e in seen})} linhas comparadas,"
-                 f" melhor EV {best}")
-    progress(f"Consultas nesta execucao: {c.session_requests} | no mes: {c.used_this_month()}")
+    edges, failures = [], 0
+    try:
+        for i, (_, f) in enumerate(pool, 1):
+            try:
+                data = c.odds(f["fixtureId"], [cfg["sharp"], cfg["soft"]])
+            except OddsPapiError as e:
+                failures += 1
+                progress(f"[{i}/{len(pool)}] ERRO nas odds ({e}); pulando")
+                if failures >= 3:  # provavelmente cota da API acabou/chave invalida: nao adianta insistir
+                    progress("3 ERROS SEGUIDOS: parei aqui. Os sinais ja encontrados foram mantidos.")
+                    break
+                continue
+            failures = 0
+            data.update({k: f[k] for k in ("participant1Name", "participant2Name") if k in f})
+            found = find_edges(data, meta, cfg)
+            edges += found
+            # transparencia: quantas linhas deu para comparar e o melhor EV visto, mesmo abaixo dos filtros
+            seen = find_edges(data, meta, {**cfg, "min_ev": -1.0, "min_kelly_pct": -1.0, "min_odd": 1.0,
+                                           "max_odd": 1000.0, "max_ev": 1e9})
+            best = f"{max(e.ev for e in seen):+.1%}" if seen else "-"
+            progress(f"[{i}/{len(pool)}] {f.get('participant1Name', '?')} x {f.get('participant2Name', '?')}"
+                     f" -> {len(found)} sinal(is) | {len({e.market_id for e in seen})} linhas comparadas,"
+                     f" melhor EV {best}")
+    except Exception as e:  # noqa: BLE001 - qualquer falha no meio nunca pode jogar fora o que ja foi achado
+        progress(f"ERRO: {e} - os {len(edges)} sinal(is) ja encontrado(s) foram mantidos")
+    progress(f"Consultas nesta execucao: {c.session_requests} | neste mes (esta chave): {c.used_this_month()}")
     return sorted(edges, key=lambda x: -x.ev)
 
 

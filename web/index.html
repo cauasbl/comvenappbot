@@ -230,11 +230,10 @@ function applyUi(ui){
 async function refresh(){
   try{ S=await api("/api/state"); }catch(e){ $("#hud").innerHTML='<span class="bad">SEM CONEXAO COM O PROGRAMA</span>'; return; }
   try{ applyUi(S.ui); }catch(e){ console.error("som/visual:",e); }  // uma falha visual nunca derruba o resto da tela
-  const left=S.budget.limit-S.budget.used;
   const a=S.auto.interval?("A CADA "+S.auto.interval+"MIN"+(S.auto.next_in!=null?" ("+Math.floor(S.auto.next_in/60)+":"+String(S.auto.next_in%60).padStart(2,"0")+")":"")):"OFF";
   const up=S.update&&S.update.available?` &middot; <b style="color:var(--pink)">ATUALIZACAO ${esc(S.update.version)}!</b>`:"";
   $("#hud").innerHTML=
-    `<span>CREDITOS <b>${S.budget.used}/${S.budget.limit}</b> (${left} RESTAM)</span>`+
+    `<span title="So o que ESTE app consultou com a chave atual. O saldo real do plano fica na OddsPapi.">CONSULTAS FEITAS PELO APP (ESTA CHAVE) <b>${S.budget.used}</b></span>`+
     `<span>TELEGRAM <b class="${S.telegram.linked?'ok':'bad'}">${S.telegram.enabled?(S.telegram.linked?'ON':'MANDE /START'):'OFF'}</b></span>`+
     `<span>AUTO <b>${a}</b></span>`+
     `<span>CHAVE ODDS <b class="${S.keys.oddspapi?'ok':'bad'}">${S.keys.oddspapi?'OK':'FALTA'}</b></span>`+
@@ -255,10 +254,6 @@ async function startScan(opts){
   try{
     const r=await api("/api/scan",opts||{});
     if(r.started){ toast("SCAN INICIADO"); return true; }
-    if(r.reason==="budget"){
-      if(confirm(`ESTA VARREDURA PODE GASTAR ATE ${r.need} CONSULTAS E RESTAM ${r.left} NO MES.\n\nCONTINUAR MESMO ASSIM?`)) return startScan({force:true});
-      toast("SCAN CANCELADO",true); return false;
-    }
     if(r.reason==="nokey"){ toast("CADASTRE A CHAVE DO ODDSPAPI",true); go("config"); return false; }
     if(r.reason==="running"){ toast("JA ESTA RODANDO",true); return false; }
     return false;
@@ -326,13 +321,12 @@ function preset(list,cur,key,fmt,unit){
 }
 function renderCfg(){
   if(!S) return; const c=S.config, iv=c.scan_interval_min, lists=S.cost.lists, cap=S.cost.cap;
-  const per=cap?lists+cap:null, left=S.budget.limit-S.budget.used;
+  const per=cap?lists+cap:null;
   let proj="";
-  if(per&&iv){const n=Math.floor(30*24*60/iv), tot=n*per; proj=`<br>AUTO A CADA ${iv}MIN = ~${n} VARREDURAS/MES = <b>~${tot} CONSULTAS/MES</b> (LIMITE ${S.budget.limit})`; if(tot>S.budget.limit)proj+=' <span class="bad">&mdash; ESTOURA O LIMITE!</span>';}
+  if(per&&iv){const n=Math.floor(30*24*60/iv); proj=`<br>AUTO A CADA ${iv}MIN = ATE ~${n} VARREDURAS/MES = <b>ATE ~${n*per} CONSULTAS/MES</b>`;}
   else if(!per) proj="<br>SEM TETO DE JOGOS: O CUSTO DEPENDE DE QUANTOS JOGOS HOUVER.";
-  const warn=(per&&per>left)||(per&&iv&&Math.floor(30*24*60/iv)*per>S.budget.limit);
   $("#cfg").innerHTML=`
-  <div class="cost ${warn?"warn":""}">POR VARREDURA: ATE <b>${per??"?"}</b> CONSULTAS (${lists} LIGAS ATIVAS + ${cap?cap:"TODOS OS"} JOGOS)<br>SALDO DO MES: <b>${left}</b> DE ${S.budget.limit}${proj}</div>
+  <div class="cost">POR VARREDURA: ATE <b>${per??"?"}</b> CONSULTAS (${lists} LIGAS ATIVAS + ${cap?cap:"TODOS OS"} JOGOS)<br>JA FEITAS PELO APP NESTE MES COM ESTA CHAVE: <b>${S.budget.used}</b> <small>(O SALDO REAL DO PLANO FICA NO PAINEL DA ODDSPAPI)</small>${proj}</div>
 
   <h3>CHAVES (FICAM SALVAS SO NESTE COMPUTADOR)</h3>
   <div class="row">ODDSPAPI <input type="password" id="k_odds" autocomplete="off" placeholder="${S.keys.oddspapi?'SALVA - COLE OUTRA PARA TROCAR':'COLE A CHAVE AQUI'}" style="width:300px"> <button data-savekey="oddspapi_key">SALVAR</button> ${S.keys.oddspapi?'<b class="ok">OK</b>':'<b class="bad">FALTA</b>'}</div>

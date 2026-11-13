@@ -94,7 +94,7 @@ def test_apply_config_families():
 
 
 # ---- resiliencia da varredura ----
-def test_client_fixtures_swallows_not_found_but_not_budget(tmp_path, monkeypatch):
+def test_client_fixtures_swallows_not_found_but_not_other_errors(tmp_path, monkeypatch):
     c = oddspapi.Client("k", cache_dir=str(tmp_path))
 
     def nf(self, path, **p):
@@ -103,11 +103,11 @@ def test_client_fixtures_swallows_not_found_but_not_budget(tmp_path, monkeypatch
     monkeypatch.setattr(oddspapi.Client, "_get", nf)
     assert c.fixtures(1) == []
 
-    def budget(self, path, **p):
-        raise oddspapi.BudgetExceeded("limite")
+    def other(self, path, **p):
+        raise oddspapi.OddsPapiError("/fixtures: {'code': 'HTTP_402'}")
 
-    monkeypatch.setattr(oddspapi.Client, "_get", budget)
-    with pytest.raises(oddspapi.BudgetExceeded):
+    monkeypatch.setattr(oddspapi.Client, "_get", other)
+    with pytest.raises(oddspapi.OddsPapiError):
         c.fixtures(1)
 
 
@@ -118,7 +118,7 @@ def test_run_live_skips_broken_league_and_continues(monkeypatch):
     class FakeClient:
         session_requests = 0
 
-        def __init__(self, key, monthly_limit=200):
+        def __init__(self, key):
             pass
 
         def used_this_month(self):
@@ -145,3 +145,73 @@ def test_run_live_skips_broken_league_and_continues(monkeypatch):
     assert len(edges) == 1 and edges[0].market.startswith("Cartoes")
     assert any("ruim" in m and "ERRO" in m for m in msgs)
     assert any("1 linhas comparadas, melhor EV +5.0%" in m for m in msgs)
+
+
+def _scan_with(monkeypatch, odds_fn):
+    """Roda run_live com 5 jogos e uma funcao que decide o que cada consulta de odds devolve."""
+    from datetime import datetime, timedelta, timezone
+    start = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    calls = []
+
+    class FC:
+        session_requests = 0
+
+        def __init__(self, key):
+            pass
+
+        def used_this_month(self):
+            return 0
+
+        def markets(self, sport):
+            return MARKETS
+
+        def fixtures(self, tid):
+            return [{"fixtureId": f"fx{i}", "startTime": start, "hasOdds": True,
+                     "participant1Name": f"A{i}", "participant2Name": f"B{i}"} for i in range(1, 6)]
+
+        def odds(self, fid, books):
+            calls.append(fid)
+            return odds_fn(fid)
+
+    monkeypatch.setenv("ODDSPAPI_KEY", "x")
+    monkeypatch.setattr(oddspapi, "Client", FC)
+    msgs = []
+    cfg = {**CFG, "window_hours": 24, "max_fixtures": 10, "leagues": {"liga": {"id": 1, "enabled": True}}}
+    return corners.run_live(cfg, progress=msgs.append), calls, msgs
+
+
+def _good():
+    return fixture({"2": {"21": 1.90, "22": 1.90}}, {"2": {"21": 2.10, "22": 1.70}})
+
+
+def test_scan_keeps_found_signals_and_stops_after_three_errors_in_a_row(monkeypatch):
+    def odds(fid):
+        if fid == "fx1":
+            return _good()
+        raise oddspapi.OddsPapiError("/odds: cota esgotada")
+
+    edges, calls, msgs = _scan_with(monkeypatch, odds)
+    assert len(edges) == 1  # o sinal do 1o jogo NAO se perde
+    assert calls == ["fx1", "fx2", "fx3", "fx4"]  # parou no 3o erro seguido; o fx5 nem foi consultado
+    assert any("3 ERROS SEGUIDOS" in m for m in msgs)
+
+
+def test_scan_keeps_found_signals_on_unexpected_crash(monkeypatch):
+    def odds(fid):
+        if fid == "fx1":
+            return _good()
+        raise ValueError("falha inesperada")
+
+    edges, calls, msgs = _scan_with(monkeypatch, odds)
+    assert len(edges) == 1 and calls == ["fx1", "fx2"]
+    assert any("ERRO: falha inesperada" in m and "1 sinal" in m for m in msgs)
+
+
+def test_scan_continues_after_an_isolated_error(monkeypatch):
+    def odds(fid):
+        if fid == "fx2":
+            raise oddspapi.OddsPapiError("/odds: erro so neste jogo")
+        return _good()
+
+    edges, calls, msgs = _scan_with(monkeypatch, odds)
+    assert len(edges) == 4 and calls == ["fx1", "fx2", "fx3", "fx4", "fx5"]  # um erro isolado so pula aquele jogo

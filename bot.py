@@ -165,7 +165,7 @@ class Bot:
                 f"EV máx {self.cfg['max_ev']:.0%}\n"
                 f"Ligas ativas: {html.escape(', '.join(on) or 'nenhuma')}\n"
                 f"Varredura automática: {auto_txt}\n"
-                f"Consultas OddsPapi no mês: {budget_used()}/{self.cfg['monthly_request_limit']}\n"
+                f"Consultas feitas pelo app neste mês (esta chave): {budget_used()}\n"
                 f"Alertas: {c.get('bet', 0)} apostei · {c.get('ignored', 0)} ignorei · {c.get('pending', 0)} pendentes")
 
     def league_buttons(self) -> list:

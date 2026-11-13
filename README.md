@@ -12,8 +12,9 @@ as oportunidades com a stake sugerida (¼ Kelly). Os dados vêm da API do [OddsP
 1. Baixe a pasta do programa (`app`) que foi compartilhada com você e abra `EvCantos.exe`.
 2. Na primeira abertura, vá em **CONFIGURAÇÕES** e cole **a sua** chave do OddsPapi (cada pessoa usa a própria; ela fica
    salva só no seu computador, em `data\secrets.json`, e nunca vai para este repositório).
-3. **INICIAR SCAN** só varre quando você manda. O custo máximo de cada varredura aparece antes, e o app pergunta
-   se passar do seu saldo do mês.
+3. **INICIAR SCAN** só varre quando você manda. O custo máximo de cada varredura aparece na tela. O app **não**
+   adivinha o saldo do seu plano: mostra só quantas consultas ele mesmo fez neste mês com a chave atual (chave nova =
+   contagem nova). O saldo real está no painel da OddsPapi; se a cota acabar, a varredura mantém o que já achou.
 
 ## Rodar o código
 ```
