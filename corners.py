@@ -47,6 +47,7 @@ class Edge:
     ask: float = 0.0  # preco do contrato em $ (0,29 = 29 centavos), sem taxa
     fee: float = 0.0  # taxa por contrato em $; betano_odd ja e a odd efetiva 1/(ask+fee)
     limit_usd: float | None = None  # dolares disponiveis nesse preco no livro
+    pin_limit: float | None = None  # maior aposta que a Pinnacle aceita nessa linha (baixo = linha menos confiavel)
 
     @property
     def fair_odd(self) -> float:
@@ -63,8 +64,19 @@ FAMILIES = {
     "tennis_winner": "Tenis: vencedor (jogo e sets)",
     "tennis_games": "Tenis: games (total e handicap)",
     "tennis_sets": "Tenis: sets (total e handicap)",
+    "esports_winner": "E-sports: vencedor (jogo e mapas)",
+    "esports_maps": "E-sports: mapas (total e handicap)",
+    "esports_rounds": "E-sports: rounds (total e handicap)",
 }
 TENNIS_FAMILIES = ("tennis_winner", "tennis_games", "tennis_sets")
+ESPORTS_FAMILIES = ("esports_winner", "esports_maps", "esports_rounds")
+AUTO_FAMILIES = TENNIS_FAMILIES + ESPORTS_FAMILIES  # handicaps x.5 entram (so futebol exclui handicap)
+# jogos de e-sports no OddsPapi (jogo -> id do esporte); os 4 abaixo foram conferidos
+ESPORT_GAMES = {"cs": 17, "lol": 18, "dota": 16, "valorant": 61}
+ESPORT_LABELS = {"cs": "CS", "lol": "LoL", "dota": "Dota 2", "valorant": "Valorant"}
+DEFAULT_ESPORTS = {"enabled": False, "games": ["cs", "lol", "dota", "valorant"], "max_tournaments": 2}
+NEW_ESPORTS = {**DEFAULT_ESPORTS, "enabled": True}
+ESPORT_SPORTS = set(ESPORT_GAMES.values())
 TENNIS_CATEGORIES = ("ATP", "WTA", "Challenger", "WTA 125K")
 # sem a chave "tennis" na config o tenis fica desligado; a migracao (app.migrate_tennis) e a config padrao ligam
 DEFAULT_TENNIS = {"enabled": False, "categories": ["ATP", "WTA"], "max_tournaments": 4}
@@ -72,8 +84,14 @@ NEW_TENNIS = {**DEFAULT_TENNIS, "enabled": True}
 TENNIS_SPORT = 12  # esporte "Tennis" no OddsPapi (futebol = 10)
 
 
-def family_of(name: str) -> str | None:
+def family_of(name: str, sport: int | None = None) -> str | None:
     n = name.lower()
+    if sport in ESPORT_SPORTS:  # e-sports: "Winner", "First Map Winner (incl. overtime)", "Maps Handicap", "Total Rounds ..."
+        if n == "winner" or "map winner" in n:
+            return "esports_winner"
+        if n.startswith("maps handicap") or n.startswith("total maps"):
+            return "esports_maps"
+        return "esports_rounds" if "rounds" in n else None
     if "corner" in n:
         return "corners"
     if "booking" in n or "card" in n:
@@ -99,16 +117,17 @@ def enabled_families(cfg: dict) -> list[str]:
     return list(FAMILIES) if fam is None else [k for k in FAMILIES if fam.get(k)]
 
 
-def market_meta(markets: list[dict], families=None, include_handicap: bool = False) -> dict[str, dict]:
+def market_meta(markets: list[dict], families=None, include_handicap: bool = False,
+                sport: int | None = None) -> dict[str, dict]:
     """marketId -> meta dos mercados de 2 ou 3 vias das familias ligadas (ids sao globais entre casas)."""
     on = set(FAMILIES) if families is None else set(families)
     out = {}
     for m in markets:
         name = m.get("marketName", "")
-        fam = family_of(name)
+        fam = family_of(name, sport)
         if fam not in on or len(m.get("outcomes", [])) not in (2, 3):
             continue
-        if "handicap" in name.lower() and not include_handicap and fam not in TENNIS_FAMILIES:
+        if "handicap" in name.lower() and not include_handicap and fam not in AUTO_FAMILIES:
             continue  # handicap de futebol (linhas asiaticas) fica de fora; no tenis so entram linhas x.5 (ver find_edges)
         out[str(m["marketId"])] = {**m, "family": fam}
     return out
@@ -171,7 +190,13 @@ def venue_fee(cfg: dict, venue: str, ask: float) -> float:
 LABELS = {"Full Time Result": "Resultado final (1X2)", "First Half Result": "Resultado 1o tempo (1X2)",
           "Both Teams To Score": "Ambas marcam", "Both Teams To Score First Half": "Ambas marcam 1o tempo",
           "Winner": "Vencedor"}
-WORDS = (("Total Games Over Under", "Total de games"), ("Total Sets Over Under", "Total de sets"),
+WORDS = (("First Map Winner (incl. overtime)", "Vencedor do 1o mapa"),
+         ("Second Map Winner (incl. overtime)", "Vencedor do 2o mapa"),
+         ("Third Map Winner (incl. overtime)", "Vencedor do 3o mapa"),
+         ("Total Maps Over Under", "Total de mapas"), ("Maps Handicap", "Handicap de mapas"),
+         ("Rounds Handicap", "Handicap de rounds"), ("Total Rounds", "Total de rounds"),
+         ("First Map", "1o mapa"), ("Second Map", "2o mapa"), ("Third Map", "3o mapa"),
+         ("Total Games Over Under", "Total de games"), ("Total Sets Over Under", "Total de sets"),
          ("Total Games", "Total de games"), ("Total Sets", "Total de sets"),
          ("Game Handicap", "Handicap de games"), ("Set Handicap", "Handicap de sets"),
          ("First Set Winner", "Vencedor do 1o set"), ("Second Set Winner", "Vencedor do 2o set"),
@@ -234,6 +259,10 @@ def find_edges(fixture: dict, meta: dict[str, dict], cfg: dict, now: datetime | 
                 continue
             if sp[2] is not None and sp[2] < cfg.get("min_limit_usd", 0.0):
                 continue  # livro raso: nao da para apostar nesse preco
+            pin_lims = [spr[o][2] for o in oids if spr[o][2] is not None]
+            pin_limit = min(pin_lims) if pin_lims else None
+            if pin_limit is not None and pin_limit < cfg.get("min_pin_limit_usd", 0.0):
+                continue  # a Pinnacle quase nao aceita aposta nessa linha: ela mesma nao confia no preco
             is_hcp = "handicap" in m["marketName"].lower()
             outcome_txt = _outcome_label(names[oid], fixture)
             if is_hcp and names[oid] in ("1", "2"):  # handicap: mostra a linha COM sinal de cada lado (ex.: Alcaraz -2.5)
@@ -259,6 +288,7 @@ def find_edges(fixture: dict, meta: dict[str, dict], cfg: dict, now: datetime | 
                 ask=ask if cfg.get("venues") else 0.0,
                 fee=fee,
                 limit_usd=sp[2],
+                pin_limit=pin_limit,
             ))
     return sorted(edges, key=lambda x: -x.ev)
 
@@ -323,12 +353,28 @@ def tennis_tournaments(cfg: dict, tournaments: list[dict]) -> list[tuple[str, in
     return [(f"{x['tournamentName']} ({x['categoryName']})", x["tournamentId"]) for x in ok[:int(t["max_tournaments"])]]
 
 
+def esports_settings(cfg: dict) -> dict:
+    return {**DEFAULT_ESPORTS, **(cfg.get("esports") or {})}
+
+
+def esport_tournaments(cfg: dict, tournaments: list[dict]) -> list[tuple[str, int]]:
+    """Torneios de UM jogo de e-sports com jogos pela frente, os com jogos mais proximos primeiro (limite por jogo)."""
+    ok = [x for x in tournaments if int(x.get("upcomingFixtures") or 0) + int(x.get("futureFixtures") or 0) > 0]
+    ok.sort(key=lambda x: (-int(x.get("upcomingFixtures") or 0), -int(x.get("futureFixtures") or 0),
+                           x.get("tournamentName", "")))
+    return [(f"{x['tournamentName']} ({x.get('categoryName', '')})", x["tournamentId"])
+            for x in ok[:int(esports_settings(cfg)["max_tournaments"])]]
+
+
 def estimate_cost(cfg: dict) -> tuple[int, int]:
     """(consultas de lista = 1 por liga ativa + torneios de tenis, teto de jogos). Teto 0 = sem limite."""
     lists = len(active_leagues(cfg))
     t = tennis_settings(cfg)
     if t["enabled"]:
         lists += 1 + int(t["max_tournaments"])  # 1 para renovar a lista de torneios + 1 por torneio
+    es = esports_settings(cfg)
+    if es["enabled"]:
+        lists += len(es["games"]) * (1 + int(es["max_tournaments"]))
     return lists, int(cfg.get("max_fixtures", 10) or 0)
 
 
@@ -342,6 +388,9 @@ def blocked_reason(e: Edge, cfg: dict) -> str | None:
         return f"1/4 Kelly {e.kelly_pct:.2%} abaixo do minimo de {cfg.get('min_kelly_pct', 0.0):.2%}"
     if e.limit_usd is not None and e.limit_usd < cfg.get("min_limit_usd", 0.0):
         return f"so ha ${e.limit_usd:.0f} no livro, abaixo do minimo de ${cfg.get('min_limit_usd', 0.0):.0f}"
+    if e.pin_limit is not None and e.pin_limit < cfg.get("min_pin_limit_usd", 0.0):
+        return (f"Pinnacle aceita so ${e.pin_limit:.0f} nessa linha (minimo ${cfg.get('min_pin_limit_usd', 0.0):.0f}): "
+                f"referencia pouco confiavel")
     return None
 
 
@@ -380,17 +429,24 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print, skip: s
 
     for league, tid in active_leagues(cfg).items():
         list_games(league, tid, 10)
+    auto = []  # (rotulo, esporte, funcao que escolhe os torneios): tenis e e-sports, escolhidos automaticamente
     if tennis_settings(cfg)["enabled"]:
+        auto.append(("Tenis", TENNIS_SPORT, lambda tl: tennis_tournaments(cfg, tl)))
+    es = esports_settings(cfg)
+    if es["enabled"]:
+        auto += [(f"E-sports {ESPORT_LABELS.get(g, g)}", ESPORT_GAMES[g], lambda tl: esport_tournaments(cfg, tl))
+                 for g in es["games"] if g in ESPORT_GAMES]
+    for label, sport, pick in auto:
         try:
-            tl = tennis_tournaments(cfg, c.tournaments(TENNIS_SPORT, max_age_h=12))
-            meta_by_sport[TENNIS_SPORT] = market_meta(c.markets(TENNIS_SPORT), enabled_families(cfg),
-                                                      cfg.get("include_handicap", False))
+            tl = pick(c.tournaments(sport, max_age_h=12))
+            meta_by_sport[sport] = market_meta(c.markets(sport), enabled_families(cfg),
+                                               cfg.get("include_handicap", False), sport=sport)
         except OddsPapiError as e:
-            progress(f"Tenis: ERRO ao buscar torneios ({e}); pulando o tenis")
-            tl = []
-        progress(f"Tenis: {len(tl)} torneio(s) com jogos ({', '.join(n for n, _ in tl) or 'nenhum'})")
+            progress(f"{label}: ERRO ao buscar torneios ({e}); pulando")
+            continue
+        progress(f"{label}: {len(tl)} torneio(s) com jogos ({', '.join(n for n, _ in tl) or 'nenhum'})")
         for league, tid in tl:
-            list_games(league, tid, TENNIS_SPORT)
+            list_games(league, tid, sport)
     pool.sort(key=lambda t: t[0])
     listed, skipped = len(pool), 0
     if skip:
@@ -422,7 +478,8 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print, skip: s
             edges += found
             # transparencia: quantas linhas deu para comparar e o melhor EV visto, mesmo abaixo dos filtros
             seen = find_edges(data, m_sport, {**cfg, "min_ev": -1.0, "min_kelly_pct": -1.0, "min_odd": 1.0,
-                                           "max_odd": 1000.0, "max_ev": 1e9, "min_limit_usd": 0.0})
+                                           "max_odd": 1000.0, "max_ev": 1e9, "min_limit_usd": 0.0,
+                                           "min_pin_limit_usd": 0.0})
             top = max(seen, key=lambda e: e.ev) if seen else None
             best = f"{top.ev:+.1%}" if top else "-"
             note = ""

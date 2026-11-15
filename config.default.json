@@ -55,7 +55,10 @@
     "btts": true,
     "tennis_winner": true,
     "tennis_games": true,
-    "tennis_sets": true
+    "tennis_sets": true,
+    "esports_winner": true,
+    "esports_maps": true,
+    "esports_rounds": true
   },
   "tennis": {
     "enabled": true,
@@ -64,5 +67,16 @@
       "WTA"
     ],
     "max_tournaments": 4
-  }
+  },
+  "esports": {
+    "enabled": true,
+    "games": [
+      "cs",
+      "lol",
+      "dota",
+      "valorant"
+    ],
+    "max_tournaments": 2
+  },
+  "min_pin_limit_usd": 0.0
 }

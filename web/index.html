@@ -425,6 +425,11 @@ function renderCfg(){
   &nbsp; CATEGORIAS ${S.tennis.all_categories.map(k=>`<button data-tencat="${esc(k)}" class="${S.tennis.categories.includes(k)?"on":""}">${esc(k.toUpperCase())}</button>`).join(" ")}</div>
   <div class="row">MAXIMO DE TORNEIOS <input type="number" id="c_ten_max" value="${S.tennis.max_tournaments}" step="1" min="1" max="12" style="width:80px"> <button data-tenmax="1">OK</button></div>
   <div class="note">${S.tennis.active.cached_at?`PELA ULTIMA LISTA BAIXADA, ENTRARIAM: ${S.tennis.active.names.length?S.tennis.active.names.map(esc).join(" &middot; "):"NENHUM TORNEIO COM JOGOS NESSAS CATEGORIAS"}`:"A LISTA DE TORNEIOS E BAIXADA NO PRIMEIRO SCAN COM O TENIS LIGADO."} &middot; CADA TORNEIO GASTA 1 CONSULTA POR SCAN, MAIS A LISTA (1 A CADA 12H). SO SIMPLES; CHALLENGER E WTA 125K TEM POUCA LIQUIDEZ NA KALSHI/POLYMARKET.</div>
+  <h3>E-SPORTS (AUTOMATICO &mdash; ESCOLHE SOZINHO OS TORNEIOS COM JOGOS)</h3>
+  <div class="row">E-SPORTS <button data-es="on" class="${S.esports.enabled?"on":""}">LIGADO</button><button data-es="off" class="${!S.esports.enabled?"on":""}">DESLIGADO</button>
+  &nbsp; JOGOS ${S.esports.all_games.map(g=>`<button data-esgame="${esc(g.key)}" class="${S.esports.games.includes(g.key)?"on":""}">${esc(g.label.toUpperCase())}</button>`).join(" ")}</div>
+  <div class="row">TORNEIOS POR JOGO <input type="number" id="c_es_max" value="${S.esports.max_tournaments}" step="1" min="1" max="6" style="width:80px"> <button data-esmax="1">OK</button></div>
+  <div class="note">${S.esports.all_games.filter(g=>S.esports.games.includes(g.key)&&S.esports.active[g.key]&&S.esports.active[g.key].cached_at).map(g=>`${esc(g.label.toUpperCase())}: ${S.esports.active[g.key].names.length?S.esports.active[g.key].names.map(esc).join(" &middot; "):"NENHUM"}`).join("<br>")||"A LISTA DE TORNEIOS E BAIXADA NO PRIMEIRO SCAN COM OS E-SPORTS LIGADOS."}<br>A PINNACLE ACEITA APOSTAS BEM MENORES EM E-SPORTS (US$ 75 A 250 CONTRA MILHARES NO TENIS): A LINHA DELA E MENOS CONFIAVEL. USE O FILTRO "PINNACLE LIMITE MINIMO" ABAIXO PARA SEPARAR O QUE E RUIDO.</div>
   <h3>BANCA E FILTROS (O QUE PODE VIRAR ALERTA)</h3>
   <div class="row">BANCA <input type="number" id="c_bankroll" value="${c.bankroll}" step="50"> <button data-apply="bankroll">OK</button></div>
   <div class="row">EV MINIMO % <input type="number" id="c_min_ev" value="${(c.min_ev*100).toFixed(1)}" step="0.5" style="width:100px"> <button data-applypct="min_ev">OK</button>
@@ -437,6 +442,7 @@ function renderCfg(){
   <div class="row">TAXA KALSHI % <input type="number" id="c_fee_kalshi" value="${(((c.fees||{}).kalshi||0)*100).toFixed(1)}" step="0.5" style="width:80px"> <button data-fee="kalshi">OK</button>
   &nbsp; TAXA POLYMARKET % <input type="number" id="c_fee_polymarket" value="${(((c.fees||{}).polymarket||0)*100).toFixed(1)}" step="0.5" style="width:80px"> <button data-fee="polymarket">OK</button></div>
   <div class="note">TAXA = TAXA x PRECO x (1-PRECO) POR CONTRATO, JA ENTRA NO EV. CONFIRA O VALOR REAL NA PLATAFORMA E AJUSTE AQUI. LIVRO MINIMO = DOLARES DISPONIVEIS NO PRECO.</div>
+  <div class="row">PINNACLE LIMITE MINIMO $ <input type="number" id="c_min_pin_limit_usd" value="${c.min_pin_limit_usd||0}" step="100" style="width:90px"> <button data-apply="min_pin_limit_usd">OK</button> <span class="note">0 = SEM FILTRO. TENIS: MILHARES. E-SPORTS: 75 A 250.</span></div>
   <div class="row">TETO DE STAKE % DA BANCA (0 = SEM TETO) <input type="number" id="c_stake_cap_pct" value="${((c.stake_cap_pct||0)*100).toFixed(1)}" step="0.5" style="width:100px"> <button data-applypct="stake_cap_pct">OK</button></div>
   <div class="row">PULAR JOGOS JA VISTOS NO START <button data-skip="1" class="${c.skip_seen!==false?"on":""}">LIGADO</button> <button data-skip="0" class="${c.skip_seen===false?"on":""}">DESLIGADO</button></div>
   <div class="row">METODO DA STAKE <button data-kmode="classic" class="${c.kelly_mode!=='ev'?'on':''}">KELLY CLASSICO</button> <button data-kmode="ev" class="${c.kelly_mode==='ev'?'on':''}">1/4 x EV</button></div>
@@ -454,6 +460,12 @@ document.addEventListener("click",async e=>{
     const el=$("#c_fee_"+fe.dataset.fee), n=Number(el.value);
     if(el.value===""||Number.isNaN(n)) return toast("VALOR INVALIDO",true);
     setCfg({fees:{[fe.dataset.fee]:n/100}}); return;}
+  const es=e.target.closest("[data-es]"); if(es){ setCfg({esports:{enabled:es.dataset.es==="on"}}); return;}
+  const eg=e.target.closest("[data-esgame]"); if(eg){
+    const cur=S.esports.games, k=eg.dataset.esgame, nxt=cur.includes(k)?cur.filter(x=>x!==k):[...cur,k];
+    if(!nxt.length) return toast("DEIXE PELO MENOS UM JOGO",true);
+    setCfg({esports:{games:nxt}}); return;}
+  if(e.target.closest("[data-esmax]")){ const n=Number($("#c_es_max").value); if(!Number.isInteger(n)||n<1||n>6) return toast("USE UM NUMERO DE 1 A 6",true); setCfg({esports:{max_tournaments:n}}); return;}
   const tn=e.target.closest("[data-ten]"); if(tn){ setCfg({tennis:{enabled:tn.dataset.ten==="on"}}); return;}
   const tc=e.target.closest("[data-tencat]"); if(tc){
     const cur=S.tennis.categories, k=tc.dataset.tencat, nxt=cur.includes(k)?cur.filter(x=>x!==k):[...cur,k];

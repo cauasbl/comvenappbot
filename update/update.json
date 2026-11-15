@@ -1,6 +1,6 @@
 {
-  "version": "0.5.0",
-  "url": "evcantos-0.5.0.zip",
-  "sha256": "79c1725c328cee5e168e78ef519f02ae7d2f996a3dabf77c4c64ccb0b4fb2e48",
-  "notes": "Tenis no scan: escolhe sozinho os torneios ATP/WTA com jogos; vencedor, sets e games na Kalshi e Polymarket"
+  "version": "0.6.0",
+  "url": "evcantos-0.6.0.zip",
+  "sha256": "5265f762a45453ac31fc58cf68024dc51016d57f51552aa483abad7babc20c08",
+  "notes": "E-sports (CS, LoL, Dota, Valorant) no scan e filtro de limite minimo da Pinnacle"
 }

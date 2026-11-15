@@ -49,6 +49,7 @@ NUMERIC = {
     "max_ev": (float, 0.01, 5.0),
     "min_odd": (float, 1.01, 100.0),  # faixa de odds (efetivas, ja com taxa) que pode virar alerta
     "max_odd": (float, 1.01, 1000.0),
+    "min_pin_limit_usd": (float, 0.0, 1e7),  # a Pinnacle precisa aceitar pelo menos isso na linha (0 = sem filtro)
     "min_limit_usd": (float, 0.0, 1e7),  # dolares minimos no livro, no preco, para virar alerta
     "stake_cap_pct": (float, 0.0, 1.0),  # teto de stake (fracao da banca); 0 = sem teto
     "min_kelly_pct": (float, 0.0, 0.2),  # 1/4 Kelly minimo (fracao da banca; 0.005 = 0,5%)
@@ -129,6 +130,21 @@ def migrate_venues(cfg: dict) -> bool:
     return True
 
 
+def migrate_esports(cfg: dict) -> bool:
+    """Configs antigas ganham os e-sports ligados e as 3 familias novas. Idempotente; respeita quem desligou."""
+    changed = False
+    if "esports" not in cfg:
+        cfg["esports"] = dict(corners.NEW_ESPORTS)
+        changed = True
+    fam = cfg.get("families")
+    if isinstance(fam, dict):
+        for k in corners.ESPORTS_FAMILIES:
+            if k not in fam:
+                fam[k] = True
+                changed = True
+    return changed
+
+
 def migrate_tennis(cfg: dict) -> bool:
     """Configs antigas (so futebol) ganham o tenis ligado e as 3 familias novas de mercado. Idempotente."""
     changed = False
@@ -166,6 +182,21 @@ def apply_config(cfg: dict, patch: dict) -> list[str]:
             clean["tennis"] = {**corners.tennis_settings(cfg), **tp}
         else:
             errors.append("tennis: use enabled (true/false), categories (ATP, WTA, Challenger, WTA 125K) e max_tournaments (1 a 12)")
+    if "esports" in patch:
+        ep = patch.pop("esports")
+        ok = isinstance(ep, dict) and set(ep) <= {"enabled", "games", "max_tournaments"}
+        if ok and "enabled" in ep:
+            ok = isinstance(ep["enabled"], bool)
+        if ok and "games" in ep:
+            ok = (isinstance(ep["games"], list) and bool(ep["games"])
+                  and all(g in corners.ESPORT_GAMES for g in ep["games"]))
+        if ok and "max_tournaments" in ep:
+            mt = ep["max_tournaments"]
+            ok = isinstance(mt, int) and not isinstance(mt, bool) and 1 <= mt <= 6
+        if ok:
+            clean["esports"] = {**corners.esports_settings(cfg), **ep}
+        else:
+            errors.append("esports: use enabled (true/false), games (cs, lol, dota, valorant) e max_tournaments (1 a 6)")
     if "cloud_user" in patch:
         cu = patch.pop("cloud_user")
         if isinstance(cu, str) and (cu == "" or cloudmod.USER_RE.match(cu)):
@@ -498,6 +529,26 @@ class App:
                 self._tourn = Client(key, self.cache_dir).tournaments(10)
         return self._tourn
 
+    def auto_active(self, sport: int, picker) -> dict:
+        """Torneios que entrariam no proximo scan para um esporte, pela ultima lista baixada (le o arquivo, sem consulta)."""
+        p = Path(self.cache_dir) / f"tournaments{sport}.json"
+        try:
+            mt = p.stat().st_mtime
+        except OSError:
+            return {"names": [], "cached_at": None}
+        cache = self.__dict__.setdefault("_auto_cache", {})
+        if sport not in cache or cache[sport][0] != mt:
+            try:
+                cache[sport] = (mt, json.loads(p.read_text(encoding="utf-8")))
+            except (OSError, ValueError):
+                return {"names": [], "cached_at": None}
+        return {"names": [n for n, _ in picker(cache[sport][1])], "cached_at": mt}
+
+    def esports_active(self) -> dict:
+        cfg = self.bot.cfg
+        return {g: self.auto_active(sid, lambda tl: corners.esport_tournaments(cfg, tl))
+                for g, sid in corners.ESPORT_GAMES.items()}
+
     def tennis_active(self) -> dict:
         """Torneios de tenis que entrariam no proximo scan, pela ultima lista baixada (le o arquivo; nao consulta a API)."""
         p = Path(self.cache_dir) / f"tournaments{corners.TENNIS_SPORT}.json"
@@ -529,6 +580,8 @@ class App:
                        "skip_seen": cfg.get("skip_seen", True),
                        "venues": cfg.get("venues") or [], "fees": cfg.get("fees") or {}},
             "leagues": leagues,
+            "esports": {**corners.esports_settings(cfg), "active": self.esports_active(),
+                        "all_games": [{"key": k, "label": corners.ESPORT_LABELS[k]} for k in corners.ESPORT_GAMES]},
             "tennis": {**corners.tennis_settings(cfg), "active": self.tennis_active(),
                        "all_categories": list(corners.TENNIS_CATEGORIES)},
             "families": [{"key": k, "label": lbl, "enabled": k in corners.enabled_families(cfg)}
@@ -790,6 +843,7 @@ def build(config_path: str = "config.json", key_required: bool = False) -> App:
     cfg = json.loads(Path(config_path).read_text(encoding="utf-8-sig"))  # -sig: aceita o BOM que o Bloco de Notas/PowerShell colocam
     migrate_venues(cfg)
     migrate_tennis(cfg)
+    migrate_esports(cfg)
     keys = load_keys()
     if keys.get("oddspapi_key") and not os.environ.get("ODDSPAPI_KEY"):
         os.environ["ODDSPAPI_KEY"] = keys["oddspapi_key"]

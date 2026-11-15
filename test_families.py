@@ -86,7 +86,8 @@ def test_apply_config_families():
     cfg = {"min_ev": 0.02, "max_ev": 0.15}
     assert app.apply_config(cfg, {"families": {"cards": False}}) == []
     assert cfg["families"] == {"corners": True, "cards": False, "goals": True, "result": True, "btts": True,
-                               "tennis_winner": True, "tennis_games": True, "tennis_sets": True}
+                               "tennis_winner": True, "tennis_games": True, "tennis_sets": True,
+                               "esports_winner": True, "esports_maps": True, "esports_rounds": True}
     before = dict(cfg["families"])
     assert app.apply_config(cfg, {"families": {"nada": True}})
     assert app.apply_config(cfg, {"families": {"corners": "sim"}})
