@@ -107,12 +107,27 @@ class Bot:
         if self.tg and chat:
             self.tg.send(chat, text)
 
-    def scan(self) -> dict:
-        """Varre, grava os alertas novos e (se houver Telegram ligado) envia. 'sent' = alertas novos criados."""
+    def scan(self, repeat: bool = False, trigger: str = "manual") -> dict:
+        """Varre, grava os alertas novos e (se houver Telegram ligado) envia. 'sent' = alertas novos criados.
+
+        Cada varredura fica registrada (scans/scan_games). Jogos ja vistos sao pulados se cfg['skip_seen']
+        (padrao: ligado), a menos que repeat=True."""
         if not self.lock.acquire(blocking=False):
             raise RuntimeError("ja existe uma varredura em andamento")
+        scan_id = None
         try:
-            edges = self.scanner(self.cfg)
+            skip_on = bool(self.cfg.get("skip_seen", True)) and not repeat
+            scan_id = self.store.start_scan(trigger, {"repeat": repeat, "skip_seen": skip_on,
+                                                    "venues": self.cfg.get("venues"), "min_ev": self.cfg.get("min_ev"),
+                                                    "window_hours": self.cfg.get("window_hours"),
+                                                    "leagues": sorted(k for k, v in self.cfg.get("leagues", {}).items()
+                                                                     if league_enabled(v))})
+            stats: dict = {}
+            if getattr(self.scanner, "wants_ctx", False):  # scanner que sabe registrar jogos e pular os vistos
+                edges = self.scanner(self.cfg, skip=self.store.seen_ids() if skip_on else None,
+                                     on_game=lambda f, i: self.store.record_game(scan_id, f, i), stats=stats)
+            else:
+                edges = self.scanner(self.cfg)
             sent = dup = sus = 0
             ids: list[int] = []  # so os novos
             all_ids: list[int] = []  # todos os sinais desta varredura (novos + ja enviados), na ordem de EV
@@ -134,15 +149,20 @@ class Bot:
                 ids.append(aid)
                 sent += 1
             self.last_result = {"sent": sent, "dup": dup, "suspicious": sus, "ids": ids, "all_ids": all_ids,
-                                "at": time.time()}
+                                "at": time.time(), "scan_id": scan_id, "skipped": stats.get("skipped", 0)}
+            self.store.finish_scan(scan_id, "done", sent + dup, stats=stats)
             return self.last_result
+        except Exception as e:
+            if scan_id is not None:
+                self.store.finish_scan(scan_id, "error", error=str(e))
+            raise
         finally:
             self.lock.release()
 
-    def run_scan(self, reply_to=None) -> dict | None:
+    def run_scan(self, reply_to=None, repeat: bool = False, trigger: str = "manual") -> dict | None:
         self._say(reply_to, "\U0001f50e Varrendo...")
         try:
-            r = self.scan()
+            r = self.scan(repeat=repeat, trigger=trigger)
         except TelegramError:
             raise
         except Exception as e:  # erro de API/orcamento nao pode derrubar o bot
@@ -304,7 +324,7 @@ def scheduler(bot: Bot, tick: float = 5.0) -> None:
         if iv and time.time() - last >= iv * 60:
             last = time.time()
             try:
-                bot.run_scan(bot.chat)
+                bot.run_scan(bot.chat, trigger="auto")
             except Exception:
                 log.exception("varredura automatica falhou")
 
@@ -325,7 +345,7 @@ def main() -> int:
     cfg = json.loads(Path(cfg_path).read_text(encoding="utf-8-sig"))  # aceita arquivo salvo com BOM
     import corners
     bot = Bot(Telegram(token), Store("bot.db"), cfg,
-              scanner=lambda c: corners.run_live(c, progress=log.info), cfg_path=cfg_path)
+              scanner=corners.live_scanner(log.info), cfg_path=cfg_path)
     threading.Thread(target=scheduler, args=(bot,), daemon=True).start()
     log.info("Bot iniciado. Mande /start para ele no Telegram.")
     try:

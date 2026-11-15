@@ -59,6 +59,7 @@ NUMERIC = {
 UI_DEFAULTS = {
     "music": True, "music_volume": 0.5, "track": "neon-drive", "sfx": True, "sfx_volume": 0.7,
     "theme": "sunset", "bg": "synthwave", "bg_motion": True, "car": True, "scanlines": True, "vignette": True,
+    "hd": False,  # True = fonte limpa e legivel, sem brilho/linhas de monitor; mesmo layout e cores
 }
 THEMES = ("sunset", "tron", "pacman", "vapor")
 BGS = ("synthwave", "grid", "none")
@@ -134,6 +135,12 @@ def apply_config(cfg: dict, patch: dict) -> list[str]:
     patch = dict(patch)
     fam_patch = patch.pop("families", None)
     ui_patch = patch.pop("ui", None)
+    if "skip_seen" in patch:
+        sk = patch.pop("skip_seen")
+        if isinstance(sk, bool):
+            clean["skip_seen"] = sk
+        else:
+            errors.append("skip_seen: use true ou false")
     if "kelly_mode" in patch:
         m = patch.pop("kelly_mode")
         if m in ("classic", "ev"):
@@ -385,6 +392,7 @@ class App:
         counts["pending"] = len(pend) - counts["expired"]
         return {
             "config": {**{k: cfg.get(k) for k in NUMERIC}, "kelly_mode": cfg.get("kelly_mode", "classic"),
+                       "skip_seen": cfg.get("skip_seen", True),
                        "venues": cfg.get("venues") or [], "fees": cfg.get("fees") or {}},
             "leagues": leagues,
             "families": [{"key": k, "label": lbl, "enabled": k in corners.enabled_families(cfg)}
@@ -411,7 +419,7 @@ class App:
             rows = store.list_alerts(status, ids, limit)
         return [present(r, self.bot.cfg) for r in rows]
 
-    def start_scan(self) -> dict:
+    def start_scan(self, repeat: bool = False) -> dict:
         """Inicia uma varredura em segundo plano (so quando o usuario pede ou o agendador manda).
         Devolve {started, reason?}. O app NAO recusa varredura por conta propria (nao adivinha o saldo do plano):
         se a cota da OddsPapi acabar, a propria API devolve erro e a varredura mantem o que ja achou."""
@@ -419,14 +427,14 @@ class App:
             return {"started": False, "reason": "running"}
         if self.key_required and not self.has_key():
             return {"started": False, "reason": "nokey"}
-        threading.Thread(target=self._scan_thread, daemon=True).start()
+        threading.Thread(target=self._scan_thread, args=(repeat,), daemon=True).start()
         return {"started": True}
 
-    def _scan_thread(self) -> None:
+    def _scan_thread(self, repeat: bool = False) -> None:
         self.logs.clear()
-        self.log("INICIANDO VARREDURA")
+        self.log("INICIANDO VARREDURA" + (" (repetindo jogos ja vistos)" if repeat else ""))
         try:
-            self.bot.run_scan(self.bot.chat)
+            self.bot.run_scan(self.bot.chat, repeat=repeat)
         except Exception as e:  # noqa: BLE001 - nada pode derrubar a thread em silencio
             self.log(f"ERRO: {e}")
         else:
@@ -530,6 +538,13 @@ def make_handler(app: App):
                                             "dir": str(app.music_dir().resolve())})
                 if u.path == "/api/state":
                     return self._send(200, app.state())
+                if u.path == "/api/scans":
+                    return self._send(200, {"scans": app.bot.store.list_scans(int(q.get("limit", ["50"])[0]))})
+                if u.path == "/api/scans/games":
+                    sid = q.get("id", [""])[0]
+                    if not sid.isdigit():
+                        return self._send(400, {"error": "id invalido"})
+                    return self._send(200, {"games": app.bot.store.scan_games(int(sid))})
                 if u.path == "/api/alerts":
                     status = q.get("status", [None])[0]
                     status = None if status in (None, "", "all") else status
@@ -583,7 +598,7 @@ def make_handler(app: App):
                         return self._send(400, {"errors": errs})
                     return self._send(200, app.state())
                 if path == "/api/scan":
-                    return self._send(200, app.start_scan())
+                    return self._send(200, app.start_scan(repeat=body.get("repeat") is True))
                 if path == "/api/music/open":
                     opener = getattr(os, "startfile", None)  # so existe no Windows
                     if opener:
@@ -630,7 +645,7 @@ def build(config_path: str = "config.json", key_required: bool = False) -> App:
     token = os.environ.get("TELEGRAM_BOT_TOKEN") or keys.get("telegram_token")
     the_app = App(None, secrets.token_urlsafe(24), key_required=key_required)
     bot = botmod.Bot(Telegram(token) if token else None, Store("bot.db"), cfg,
-                     scanner=lambda c: corners.run_live(c, progress=the_app.log), cfg_path=config_path)
+                     scanner=corners.live_scanner(the_app.log), cfg_path=config_path)
     the_app.bot = bot
     threading.Thread(target=botmod.scheduler, args=(bot,), daemon=True).start()
     the_app.start_polling()

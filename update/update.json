@@ -1,6 +1,6 @@
 {
-  "version": "0.2.0",
-  "url": "evcantos-0.2.0.zip",
-  "sha256": "a2d7d54328a596812b401660d9c57c1ace8b296450b134441af6eda018b1107f",
-  "notes": "Kalshi e Polymarket no lugar da Betano (Pinnacle segue como referencia): taxa no EV, preco do livro, plataformas e livro minimo na tela"
+  "version": "0.3.0",
+  "url": "evcantos-0.3.0.zip",
+  "sha256": "9af01359da23d1ac9f7bfa6f985f5734420b0baac73ed1f49a8f696b0d6716a8",
+  "notes": "Botao HD/Retro no menu, registro de cada scan, historico e opcao de pular/repetir jogos ja vistos"
 }

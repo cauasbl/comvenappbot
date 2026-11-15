@@ -158,7 +158,7 @@ def test_update_endpoints_end_to_end(srv2, host, monkeypatch):  # noqa: F811
     a, bot, port, _, tmp = srv2
     publish, _root = host
     monkeypatch.chdir(tmp)  # o app grava em ./updates (relativo)
-    url = publish("0.2.0", notes="musicas novas")
+    url = publish("99.0.0", notes="musicas novas")
     assert call(port, "/api/config", {"update_url": "http://example.com/u.json"})[0] == 400
     assert call(port, "/api/update/install", {})[0] == 400  # nada verificado ainda
     assert call(port, "/api/config", {"update_url": url})[1]["update_url"] == url
@@ -166,7 +166,7 @@ def test_update_endpoints_end_to_end(srv2, host, monkeypatch):  # noqa: F811
     assert code == 200 and s["update"]["available"] is True and s["update"]["notes"] == "musicas novas"
     assert s["version"] == version.VERSION and s["update"]["staged"] is None
     code, s = call(port, "/api/update/install", {})
-    assert code == 200 and s["update"]["staged"] == "0.2.0" and (tmp / "updates" / "0.2.0" / ".ok").is_file()
+    assert code == 200 and s["update"]["staged"] == "99.0.0" and (tmp / "updates" / "99.0.0" / ".ok").is_file()
     assert call(port, "/api/update/restart", {})[1] == {"restarting": False}  # sem launcher (modo navegador)
     called = threading.Event()
     a.on_restart = called.set

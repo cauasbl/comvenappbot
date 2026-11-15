@@ -76,6 +76,30 @@ input[type=range]{width:220px;accent-color:var(--pink);vertical-align:middle}
 .path{color:var(--yellow);word-break:break-all}
 .note{color:var(--dim);font-size:9px;line-height:2}
 @media (max-width:640px){body{font-size:10px}.screen{padding:14px}}
+
+/* ---------- modo HD: so troca a tipografia e tira o efeito analogico; layout e cores ficam iguais ---------- */
+.screen{position:relative}
+.mode{position:absolute;top:12px;right:14px;display:flex;align-items:center;gap:8px;font-size:9px;color:var(--dim);cursor:pointer;user-select:none;z-index:3}
+.mode .pill{width:38px;height:20px;border:2px solid var(--cyan);border-radius:12px;position:relative;background:#000}
+.mode .pill::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--cyan);transition:left .15s}
+.mode.hd .pill::after{left:20px;background:var(--green)}
+.mode.hd .pill{border-color:var(--green)}
+.mode .r,.mode .h{transition:color .15s}
+.mode:not(.hd) .r,.mode.hd .h{color:var(--yellow)}
+body.hd{font-family:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.55;font-weight:500;letter-spacing:.01em}
+body.hd::after,body.hd::before{display:none}
+body.hd button,body.hd input{font-family:inherit;font-size:14px;font-weight:600}
+body.hd h1.logo{font-weight:800;letter-spacing:.04em;text-shadow:0 2px 0 var(--pink)}
+body.hd h2{font-weight:700;font-size:22px;text-shadow:none}
+body.hd h3{font-weight:700;font-size:15px}
+body.hd .top,body.hd .sub,body.hd .note,body.hd .card .k,body.hd .hud,body.hd .tagx,body.hd .blink,body.hd .tag,body.hd .mode{font-size:13px}
+body.hd .card .m,body.hd .log,body.hd .cost{font-size:14px;line-height:1.7}
+body.hd .card .h{font-size:17px;font-weight:700}
+body.hd .press{font-size:26px;font-weight:800;text-shadow:none}
+body.hd ul.menu li{font-size:17px;font-weight:600}
+body.hd ul.menu li.sel{text-shadow:none}
+body.hd .mode{font-weight:700}
+
 </style>
 </head>
 <body data-theme="sunset">
@@ -93,7 +117,7 @@ input[type=range]{width:220px;accent-color:var(--pink);vertical-align:middle}
       <svg width="40" height="40" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#ff2bd6" d="M3 15V7a5 5 0 0 1 10 0v8l-2-2-1.5 2L8 13l-1.5 2L5 13z"/><rect x="5" y="6" width="2" height="3" fill="#fff"/><rect x="9" y="6" width="2" height="3" fill="#fff"/><rect x="6" y="7" width="1" height="2" fill="#00f0ff"/><rect x="10" y="7" width="1" height="2" fill="#00f0ff"/></svg>
     </div>
     <h1 class="logo">EV CANTOS</h1>
-    <p class="tag">PINNACLE &times; BETANO &middot; MERCADOS +EV</p>
+    <p class="tag">PINNACLE &times; KALSHI &middot; POLYMARKET &middot; MERCADOS +EV</p>
     <p class="press blink" id="pressStart">PRESS START</p>
     <p class="sub">APERTE ENTER OU CLIQUE</p>
     <p class="sub" id="startInfo"></p>
@@ -102,26 +126,37 @@ input[type=range]{width:220px;accent-color:var(--pink);vertical-align:middle}
   <!-- MENU -->
   <section class="screen" id="menu">
     <h1 class="logo">EV CANTOS</h1>
-    <p class="tag">PINNACLE &times; BETANO &middot; MERCADOS +EV</p>
+    <p class="tag">PINNACLE &times; KALSHI &middot; POLYMARKET &middot; MERCADOS +EV</p>
     <ul class="menu" id="menuList">
       <li data-go="scan">INICIAR SCAN</li>
       <li data-go="bets">MINHAS APOSTAS</li>
+      <li data-go="hist">HISTORICO DE SCANS</li>
       <li data-go="config">CONFIGURACOES</li>
       <li data-go="fx">SOM E VISUAL</li>
       <li data-go="upd">ATUALIZACOES</li>
       <li data-go="quit">SAIR</li>
     </ul>
     <p class="blink">USE &uarr; &darr; E ENTER</p>
+    <div class="mode" id="modeSw" role="switch" aria-checked="false" aria-label="Modo HD" title="Alternar entre HD e Retro"><span class="r">RETRO</span><div class="pill"></div><span class="h">HD</span></div>
   </section>
 
   <!-- SCAN -->
   <section class="screen" id="scan">
     <button class="back" data-go="menu">&larr; MENU</button>
     <h2>SCAN</h2>
-    <div class="row"><button class="go" id="btnScan">&#9654; START</button><span id="scanInfo"></span></div>
+    <div class="row"><button class="go" id="btnScan">&#9654; START</button><button id="btnScanRepeat" title="Olha de novo os jogos que ja foram vistos em scans anteriores">&#8635; REPETIR JOGOS VISTOS</button><span id="scanInfo"></span></div>
+    <div class="note" id="skipInfo"></div>
     <div class="log" id="scanLog">AGUARDANDO START...</div>
     <h3>RESULTADO</h3>
     <div id="scanRes" class="empty">NENHUMA VARREDURA AINDA</div>
+  </section>
+
+  <!-- HISTORICO DE SCANS -->
+  <section class="screen" id="hist">
+    <button class="back" data-go="menu">&larr; MENU</button>
+    <h2>HISTORICO DE SCANS</h2>
+    <div class="note">CADA VARREDURA FICA REGISTRADA. CLIQUE EM UMA PARA VER OS JOGOS QUE FORAM OLHADOS.</div>
+    <div id="histList"></div>
   </section>
 
   <!-- APOSTAS -->
@@ -186,11 +221,12 @@ const pct=(x,d=1)=>(x*100).toFixed(d)+"%";
 function go(name){
   if(name==="quit"){ doQuit(); return; }
   screen=name; document.querySelectorAll(".screen").forEach(e=>e.classList.toggle("on",e.id===name));
-  if(name==="bets") loadBets(); if(name==="config") renderCfg(); if(name==="scan") renderScan();
+  if(name==="hist") loadHist(); if(name==="bets") loadBets(); if(name==="config") renderCfg(); if(name==="scan") renderScan();
   if(name==="fx") loadMusic(); if(name==="upd") renderUpd();
   window.scrollTo(0,0);
 }
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]"); if(b) go(b.dataset.go);});
+document.addEventListener("click",e=>{ if(e.target.closest("#modeSw")&&typeof S!=="undefined"&&S) setUi({hd:!S.ui.hd}); });
 // som de clique em qualquer botao/interruptor/item de menu (o som so toca depois do PRESS START)
 document.addEventListener("click",e=>{ if(e.target.closest(".back")) EVA.sfx("back"); else if(e.target.closest("button,.sw,.menu li,[data-go]")) EVA.sfx("select"); },true);
 
@@ -222,6 +258,8 @@ function applyUi(ui){
   const k=JSON.stringify(ui); if(k===lastUi) return; lastUi=k;
   document.body.dataset.theme=ui.theme;
   document.body.classList.toggle("no-scan",!ui.scanlines); document.body.classList.toggle("no-vig",!ui.vignette);
+  document.body.classList.toggle("hd",!!ui.hd);
+  const ms=document.getElementById("modeSw"); if(ms){ ms.classList.toggle("hd",!!ui.hd); ms.setAttribute("aria-checked",!!ui.hd); }
   BG.configure({mode:ui.bg,theme:ui.theme,motion:ui.bg_motion,car:ui.car});
   EVA.configure({music:ui.music,music_volume:ui.music_volume,track:ui.track,sfx:ui.sfx,sfx_volume:ui.sfx_volume});
 }
@@ -260,6 +298,7 @@ async function startScan(opts){
   }catch(e){ toast(e.message,true); return false; }
 }
 $("#btnScan").addEventListener("click",async()=>{ await startScan({}); refresh(); });
+$("#btnScanRepeat").addEventListener("click",async()=>{ await startScan({repeat:true}); refresh(); });
 async function doQuit(){
   if(!confirm("FECHAR O EV CANTOS?")) return;
   try{ const r=await api("/api/quit",{}); if(r.closing) return; }catch(e){}
@@ -270,6 +309,8 @@ async function renderScan(){
   if(!S) return;
   const sc=S.scan, [lists,cap]=[S.cost.lists,S.cost.cap];
   $("#btnScan").disabled=sc.running; $("#btnScan").textContent=sc.running?"RODANDO...":"▶ START";
+  $("#btnScanRepeat").disabled=sc.running;
+  $("#skipInfo").textContent=S.config.skip_seen?"START PULA OS JOGOS JA VISTOS EM SCANS ANTERIORES (ECONOMIZA CONSULTAS). USE REPETIR PARA OLHAR DE NOVO.":"PULAR JOGOS JA VISTOS ESTA DESLIGADO EM CONFIGURACOES: TODO START OLHA TUDO DE NOVO.";
   $("#scanInfo").innerHTML=`ATE <b style="color:var(--yellow)">${cap?lists+cap:"?"}</b> CONSULTAS (${lists} LIGAS + ${cap?cap:"TODOS OS"} JOGOS) &middot; JANELA ${S.config.window_hours}H`;
   const L=$("#scanLog"); const txt=sc.log.map(l=>`[${l.t}] ${l.m}`).join("\n")||"AGUARDANDO START...";
   if(L.textContent!==txt){L.textContent=txt;L.scrollTop=L.scrollHeight;}
@@ -279,10 +320,32 @@ async function renderScan(){
   box.className="";
   const all=r.all_ids||r.ids||[], fresh=new Set(r.ids||[]);
   const key=JSON.stringify([r.at,all]); if(key===lastShown) return; lastShown=key;
-  let html=`<p><b class="ok">${r.sent}</b> NOVOS &middot; ${r.dup} JA ENVIADOS &middot; ${r.suspicious} SUSPEITOS &middot; <b style="color:var(--yellow)">${all.length} NO TOTAL</b></p>`;
+  let html=`<p><b class="ok">${r.sent}</b> NOVOS &middot; ${r.dup} JA ENVIADOS &middot; ${r.suspicious} SUSPEITOS &middot; <b style="color:var(--yellow)">${all.length} NO TOTAL</b>${r.skipped?` &middot; ${r.skipped} JOGOS JA VISTOS PULADOS`:""}</p>`;
   if(all.length){ try{ const {alerts}=await api("/api/alerts?ids="+all.join(",")); alerts.sort((a,b)=>b.ev-a.ev); html+=alerts.map(a=>cardHtml(a,fresh.has(a.id))).join(""); }catch(e){} }
   box.innerHTML=html;
 }
+
+/* ---------- HISTORICO DE SCANS ---------- */
+async function loadHist(){
+  const box=$("#histList");
+  try{
+    const {scans}=await api("/api/scans?limit=50");
+    if(!scans.length){ box.innerHTML='<div class="empty">NENHUM SCAN REGISTRADO AINDA</div>'; return; }
+    box.innerHTML=scans.map(s=>{
+      const st=s.status==="done"?'<span class="ok">OK</span>':s.status==="error"?'<span class="bad">ERRO</span>':'<span class="k">RODANDO</span>';
+      return `<div class="card" data-scanid="${s.id}" style="cursor:pointer"><div class="h">#${s.id} &middot; ${fmtT(s.started_at)} ${st}${s.trigger==="auto"?' <span class="tagx">AUTO</span>':""}</div>
+        <div class="m">${s.listed??"?"} NA JANELA &middot; ${s.skipped??0} PULADOS &middot; ${s.scanned??0} OLHADOS &middot; <b style="color:var(--yellow)">${s.signals??0} SINAIS</b> &middot; ${s.blocked??0} BARRADOS &middot; ${s.queries??0} CONSULTAS</div>
+        ${s.error?`<div class="m bad">${esc(s.error)}</div>`:""}<div class="games k" id="games${s.id}"></div></div>`; }).join("");
+  }catch(e){ box.innerHTML=`<div class="empty bad">${esc(e.message)}</div>`; }
+}
+document.addEventListener("click",async e=>{
+  const c=e.target.closest("[data-scanid]"); if(!c) return; const id=c.dataset.scanid, g=document.getElementById("games"+id);
+  if(g.dataset.open){ g.innerHTML=""; delete g.dataset.open; return; }
+  try{
+    const {games}=await api("/api/scans/games?id="+id); g.dataset.open="1";
+    g.innerHTML=games.length?games.map(x=>`<div>${esc(x.fixture)} &middot; ${esc(x.league||"")} &middot; ${fmtT(x.start_time)} &middot; ${x.compared??0} LINHAS &middot; ${x.signals??0} SINAL(IS) &middot; MELHOR EV ${x.best_ev==null?"-":(x.best_ev>=0?"+":"")+pct(x.best_ev)}${x.note?" &middot; "+esc(x.note):""}</div>`).join(""):"<div>NENHUM JOGO REGISTRADO</div>";
+  }catch(err){ toast(err.message,true); }
+});
 
 /* ---------- APOSTAS ---------- */
 const TABS=[["pending","PENDENTES"],["bet","APOSTEI"],["ignored","IGNOREI"],["expired","EXPIRADOS"],["all","TODAS"]];
@@ -363,6 +426,7 @@ function renderCfg(){
   &nbsp; TAXA POLYMARKET % <input type="number" id="c_fee_polymarket" value="${(((c.fees||{}).polymarket||0)*100).toFixed(1)}" step="0.5" style="width:80px"> <button data-fee="polymarket">OK</button></div>
   <div class="note">TAXA = TAXA x PRECO x (1-PRECO) POR CONTRATO, JA ENTRA NO EV. CONFIRA O VALOR REAL NA PLATAFORMA E AJUSTE AQUI. LIVRO MINIMO = DOLARES DISPONIVEIS NO PRECO.</div>
   <div class="row">TETO DE STAKE % DA BANCA (0 = SEM TETO) <input type="number" id="c_stake_cap_pct" value="${((c.stake_cap_pct||0)*100).toFixed(1)}" step="0.5" style="width:100px"> <button data-applypct="stake_cap_pct">OK</button></div>
+  <div class="row">PULAR JOGOS JA VISTOS NO START <button data-skip="1" class="${c.skip_seen!==false?"on":""}">LIGADO</button> <button data-skip="0" class="${c.skip_seen===false?"on":""}">DESLIGADO</button></div>
   <div class="row">METODO DA STAKE <button data-kmode="classic" class="${c.kelly_mode!=='ev'?'on':''}">KELLY CLASSICO</button> <button data-kmode="ev" class="${c.kelly_mode==='ev'?'on':''}">1/4 x EV</button></div>
   <div class="note">CLASSICO: 1/4 x EV/(ODD-1) (MENOR EM ODD LONGA). 1/4 x EV: EV 8% = 2% DA BANCA EM QUALQUER ODD. TROCAR RECALCULA OS PENDENTES NA HORA. A ODD E A DA BETANO. EV ACIMA DO MAXIMO VIRA "SUSPEITO" (PROVAVEL ERRO DE LINHA) E NAO ENTRA NOS ALERTAS. NO LOG DO SCAN, CADA JOGO MOSTRA O MELHOR CANDIDATO E, SE FOI BARRADO, QUAL LINHA E POR QUE.</div>`;
 }
@@ -378,6 +442,7 @@ document.addEventListener("click",async e=>{
     const el=$("#c_fee_"+fe.dataset.fee), n=Number(el.value);
     if(el.value===""||Number.isNaN(n)) return toast("VALOR INVALIDO",true);
     setCfg({fees:{[fe.dataset.fee]:n/100}}); return;}
+  const skp=e.target.closest("[data-skip]"); if(skp){ setCfg({skip_seen:skp.dataset.skip==="1"}); return;}
   const km=e.target.closest("[data-kmode]"); if(km){ setCfg({kelly_mode:km.dataset.kmode}); return;}
   const a=e.target.closest("[data-apply],[data-applypct]"); if(a){
     const pct=a.dataset.applypct!==undefined, k=pct?a.dataset.applypct:a.dataset.apply, el=$("#c_"+k), n=Number(el.value);

@@ -295,8 +295,13 @@ def blocked_reason(e: Edge, cfg: dict) -> str | None:
     return None
 
 
-def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list[Edge]:
-    """Varre as ligas ativas. O teto de jogos vale para TODAS as ligas juntas, pelos jogos mais proximos."""
+def run_live(cfg: dict, max_fixtures: int | None = None, progress=print, skip: set | None = None,
+             on_game=None, stats: dict | None = None) -> list[Edge]:
+    """Varre as ligas ativas. O teto de jogos vale para TODAS as ligas juntas, pelos jogos mais proximos.
+
+    skip: ids de jogos ja vistos (saem ANTES do teto, entao o teto conta so jogos novos).
+    on_game(fixture, info): chamado a cada jogo cujas odds foram lidas (para o registro de scans).
+    stats: dicionario preenchido no fim com listed/skipped/scanned/blocked/queries."""
     from oddspapi import Client, OddsPapiError
     key = os.environ.get("ODDSPAPI_KEY")
     if not key:
@@ -317,12 +322,21 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list
         fx = [x for x in listed if x.get("hasOdds")
               and now < datetime.fromisoformat(x["startTime"].replace("Z", "+00:00")) <= horizon]
         progress(f"{league}: {len(fx)} jogos na janela de {cfg['window_hours']}h")
+        for x in fx:
+            x["_league"] = league
         pool += [(x["startTime"], x) for x in fx]
     pool.sort(key=lambda t: t[0])
+    listed, skipped = len(pool), 0
+    if skip:
+        kept = [t for t in pool if t[1]["fixtureId"] not in skip]
+        skipped, pool = len(pool) - len(kept), kept
+        if skipped:
+            progress(f"Pulando {skipped} jogo(s) ja visto(s) em scans anteriores "
+                     f"(para rever, use REPETIR JOGOS VISTOS ou desligue em CONFIGURACOES).")
     if cap:
         pool = pool[:cap]
     progress(f"Olhando {len(pool)} jogo(s), os mais proximos primeiro")
-    edges, failures, blocked = [], 0, 0
+    edges, failures, blocked, scanned = [], 0, 0, 0
     try:
         for i, (_, f) in enumerate(pool, 1):
             try:
@@ -335,6 +349,7 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list
                     break
                 continue
             failures = 0
+            scanned += 1
             data.update({k: f[k] for k in ("participant1Name", "participant2Name") if k in f})
             found = find_edges(data, meta, cfg)
             edges += found
@@ -353,13 +368,26 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list
             progress(f"[{i}/{len(pool)}] {f.get('participant1Name', '?')} x {f.get('participant2Name', '?')}"
                      f" -> {len(found)} sinal(is) | {len({e.market_id for e in seen})} linhas comparadas,"
                      f" melhor EV {best}{note}")
+            if on_game:
+                on_game(f, {"league": f.get("_league"), "compared": len({e.market_id for e in seen}),
+                            "signals": len(found), "best_ev": top.ev if top else None, "note": note.strip()})
     except Exception as e:  # noqa: BLE001 - qualquer falha no meio nunca pode jogar fora o que ja foi achado
         progress(f"ERRO: {e} - os {len(edges)} sinal(is) ja encontrado(s) foram mantidos")
     if blocked:
         progress(f"{blocked} jogo(s) tinham candidato com EV acima do minimo, barrado pelos filtros "
                  f"(veja as linhas BARRADO; ajuste em CONFIGURACOES > BANCA E FILTROS).")
     progress(f"Consultas nesta execucao: {c.session_requests} | neste mes (esta chave): {c.used_this_month()}")
+    if stats is not None:
+        stats.update(listed=listed, skipped=skipped, scanned=scanned, blocked=blocked, queries=c.session_requests)
     return sorted(edges, key=lambda x: -x.ev)
+
+
+def live_scanner(progress=print):
+    """Scanner para o Bot: run_live com registro de jogos (marca wants_ctx para o Bot passar skip/on_game/stats)."""
+    def scanner(cfg, **kw):
+        return run_live(cfg, progress=progress, **kw)
+    scanner.wants_ctx = True
+    return scanner
 
 
 def main() -> int:
