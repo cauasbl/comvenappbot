@@ -46,8 +46,9 @@ NUMERIC = {
     "bankroll": (float, 1.0, 1e9),
     "min_ev": (float, 0.0, 1.0),
     "max_ev": (float, 0.01, 5.0),
-    "min_odd": (float, 1.01, 100.0),  # faixa de odds da Betano que pode virar alerta
+    "min_odd": (float, 1.01, 100.0),  # faixa de odds (efetivas, ja com taxa) que pode virar alerta
     "max_odd": (float, 1.01, 1000.0),
+    "min_limit_usd": (float, 0.0, 1e7),  # dolares minimos no livro, no preco, para virar alerta
     "stake_cap_pct": (float, 0.0, 1.0),  # teto de stake (fracao da banca); 0 = sem teto
     "min_kelly_pct": (float, 0.0, 0.2),  # 1/4 Kelly minimo (fracao da banca; 0.005 = 0,5%)
     "window_hours": (float, 1.0, 336.0),
@@ -107,6 +108,25 @@ def url_ok(u: str) -> bool:
     return bool(p.hostname) and (p.scheme == "https" or (p.scheme == "http" and p.hostname in LOCAL_HOSTS))
 
 
+VENUES = ("kalshi", "polymarket")
+DEFAULT_FEES = {"kalshi": 0.07, "polymarket": 0.03}  # taxa x P x (1-P); confira na plataforma e ajuste na tela
+
+
+def migrate_venues(cfg: dict) -> bool:
+    """Config antiga (Betano) -> Kalshi/Polymarket. So roda se ainda nao ha 'venues'. Devolve True se mudou."""
+    if cfg.get("venues"):
+        return False
+    cfg["venues"] = list(VENUES)
+    cfg["fees"] = {**DEFAULT_FEES, **cfg.get("fees", {})}
+    cfg.setdefault("min_limit_usd", 50.0)
+    cfg["min_odd"] = min(cfg.get("min_odd", 1.5), 1.1)  # contratos de exchange cobrem odds bem mais baixas e altas
+    cfg["max_odd"] = max(cfg.get("max_odd", 3.5), 20.0)
+    fam = dict(cfg.get("families") or {k: True for k in corners.FAMILIES})
+    fam.update(corners=False, cards=False)  # essas plataformas nao negociam escanteios/cartoes
+    cfg["families"] = fam
+    return True
+
+
 # ---------- logica pura (testavel sem HTTP) ----------
 def apply_config(cfg: dict, patch: dict) -> list[str]:
     """Valida e aplica campos numericos/booleanos e familias. Devolve a lista de erros (vazia = aplicado)."""
@@ -120,6 +140,19 @@ def apply_config(cfg: dict, patch: dict) -> list[str]:
             clean["kelly_mode"] = m
         else:
             errors.append("kelly_mode: use 'classic' ou 'ev'")
+    if "venues" in patch:
+        v = patch.pop("venues")
+        if isinstance(v, list) and v and all(x in VENUES for x in v):
+            clean["venues"] = list(dict.fromkeys(v))
+        else:
+            errors.append("venues: escolha ao menos uma entre " + ", ".join(VENUES))
+    if "fees" in patch:
+        fe = patch.pop("fees")
+        if (isinstance(fe, dict) and all(k in VENUES for k in fe)
+                and all(isinstance(x, (int, float)) and not isinstance(x, bool) and 0 <= x <= 0.5 for x in fe.values())):
+            clean["fees"] = {**DEFAULT_FEES, **cfg.get("fees", {}), **{k: float(x) for k, x in fe.items()}}
+        else:
+            errors.append("fees: use {casa: taxa} com taxa entre 0 e 0,5")
     if "update_url" in patch:
         u = patch.pop("update_url")
         if isinstance(u, str) and (not u.strip() or url_ok(u)):
@@ -351,7 +384,8 @@ class App:
         counts["expired"] = sum(1 for r in pend if has_started(r))
         counts["pending"] = len(pend) - counts["expired"]
         return {
-            "config": {**{k: cfg.get(k) for k in NUMERIC}, "kelly_mode": cfg.get("kelly_mode", "classic")},
+            "config": {**{k: cfg.get(k) for k in NUMERIC}, "kelly_mode": cfg.get("kelly_mode", "classic"),
+                       "venues": cfg.get("venues") or [], "fees": cfg.get("fees") or {}},
             "leagues": leagues,
             "families": [{"key": k, "label": lbl, "enabled": k in corners.enabled_families(cfg)}
                          for k, lbl in corners.FAMILIES.items()],
@@ -589,6 +623,7 @@ def make_handler(app: App):
 def build(config_path: str = "config.json", key_required: bool = False) -> App:
     """Monta bot + app (sem abrir porta). Chaves: variavel de ambiente tem prioridade; senao secrets.json."""
     cfg = json.loads(Path(config_path).read_text(encoding="utf-8-sig"))  # -sig: aceita o BOM que o Bloco de Notas/PowerShell colocam
+    migrate_venues(cfg)
     keys = load_keys()
     if keys.get("oddspapi_key") and not os.environ.get("ODDSPAPI_KEY"):
         os.environ["ODDSPAPI_KEY"] = keys["oddspapi_key"]

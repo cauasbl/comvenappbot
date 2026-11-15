@@ -43,6 +43,10 @@ class Edge:
     market_id: str = ""
     outcome_id: str = ""
     start_time: str | None = None
+    venue: str = ""  # casa onde se aposta (kalshi, polymarket...); vazio = casa unica antiga
+    ask: float = 0.0  # preco do contrato em $ (0,29 = 29 centavos), sem taxa
+    fee: float = 0.0  # taxa por contrato em $; betano_odd ja e a odd efetiva 1/(ask+fee)
+    limit_usd: float | None = None  # dolares disponiveis nesse preco no livro
 
     @property
     def fair_odd(self) -> float:
@@ -109,7 +113,7 @@ def is_half_line(handicap: float) -> bool:
 def _price(outcome: dict):
     for p in outcome.get("players", {}).values():
         if p.get("active", True) and p.get("price") and p["price"] > 1:
-            return p["price"], p.get("changedAt")
+            return p["price"], p.get("changedAt"), p.get("limit")
     return None
 
 
@@ -139,6 +143,16 @@ def _age_min(ts: str | None, now: datetime) -> float | None:
     return (now - t).total_seconds() / 60
 
 
+def venue_list(cfg: dict) -> list[str]:
+    """Casas onde se aposta. Config antiga (so 'soft') continua valendo."""
+    return list(cfg.get("venues") or [cfg["soft"]])
+
+
+def venue_fee(cfg: dict, venue: str, ask: float) -> float:
+    """Taxa por contrato em $: taxa x P x (1-P), P = preco. A taxa por casa vem de cfg['fees'] (0 = sem taxa)."""
+    return float(cfg.get("fees", {}).get(venue, 0.0)) * ask * (1.0 - ask)
+
+
 LABELS = {"Full Time Result": "Resultado final (1X2)", "First Half Result": "Resultado 1o tempo (1X2)",
           "Both Teams To Score": "Ambas marcam", "Both Teams To Score First Half": "Ambas marcam 1o tempo"}
 WORDS = (("Bookings", "Cartoes"), ("Corners", "Escanteios"), ("Over Under", "Total"),
@@ -165,7 +179,7 @@ def find_edges(fixture: dict, meta: dict[str, dict], cfg: dict, now: datetime | 
     now = now or datetime.now(timezone.utc)
     books = fixture.get("bookmakerOdds", {})
     sharp = book_prices(books.get(cfg["sharp"]), meta)
-    soft = book_prices(books.get(cfg["soft"]), meta)
+    softs = {v: book_prices(books.get(v), meta) for v in venue_list(cfg)}
     title = f"{fixture.get('participant1Name', '?')} x {fixture.get('participant2Name', '?')}"
     edges: list[Edge] = []
     for mid, spr in sharp.items():
@@ -181,11 +195,14 @@ def find_edges(fixture: dict, meta: dict[str, dict], cfg: dict, now: datetime | 
         if sum(1 / x for x in odds) > cfg.get("max_overround", 1.08):
             continue
         probs = devig(odds, cfg.get("devig", "power"))
-        for oid, p in zip(oids, probs):
+        for venue, soft in softs.items():
+          for oid, p in zip(oids, probs):
             sp = soft.get(mid, {}).get(oid)
             if not sp:
                 continue
-            odd = sp[0]
+            ask = 1.0 / sp[0]
+            fee = venue_fee(cfg, venue, ask)
+            odd = sp[0] if not fee else 1.0 / (ask + fee)  # odd efetiva: a taxa encarece o contrato
             if not (cfg["min_odd"] <= odd <= cfg["max_odd"]):
                 continue
             e = ev(p, odd)
@@ -194,6 +211,8 @@ def find_edges(fixture: dict, meta: dict[str, dict], cfg: dict, now: datetime | 
             kpct = stake_pct(p, odd, cfg["kelly_fraction"], cfg.get("kelly_mode", "classic"))
             if kpct < cfg.get("min_kelly_pct", 0.0):
                 continue
+            if sp[2] is not None and sp[2] < cfg.get("min_limit_usd", 0.0):
+                continue  # livro raso: nao da para apostar nesse preco
             edges.append(Edge(
                 fixture=title,
                 market=f"{_label(m['marketName'], fixture)} {abs(h):g}" if h else _label(m["marketName"], fixture),
@@ -210,6 +229,10 @@ def find_edges(fixture: dict, meta: dict[str, dict], cfg: dict, now: datetime | 
                 market_id=mid,
                 outcome_id=oid,
                 start_time=fixture.get("startTime"),
+                venue=venue if cfg.get("venues") else "",
+                ask=ask if cfg.get("venues") else 0.0,
+                fee=fee,
+                limit_usd=sp[2],
             ))
     return sorted(edges, key=lambda x: -x.ev)
 
@@ -267,6 +290,8 @@ def blocked_reason(e: Edge, cfg: dict) -> str | None:
         return f"EV abaixo do minimo de {cfg['min_ev']:.1%}"
     if e.kelly_pct < cfg.get("min_kelly_pct", 0.0):
         return f"1/4 Kelly {e.kelly_pct:.2%} abaixo do minimo de {cfg.get('min_kelly_pct', 0.0):.2%}"
+    if e.limit_usd is not None and e.limit_usd < cfg.get("min_limit_usd", 0.0):
+        return f"so ha ${e.limit_usd:.0f} no livro, abaixo do minimo de ${cfg.get('min_limit_usd', 0.0):.0f}"
     return None
 
 
@@ -301,7 +326,7 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list
     try:
         for i, (_, f) in enumerate(pool, 1):
             try:
-                data = c.odds(f["fixtureId"], [cfg["sharp"], cfg["soft"]])
+                data = c.odds(f["fixtureId"], [cfg["sharp"], *venue_list(cfg)])
             except OddsPapiError as e:
                 failures += 1
                 progress(f"[{i}/{len(pool)}] ERRO nas odds ({e}); pulando")
@@ -315,7 +340,7 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print) -> list
             edges += found
             # transparencia: quantas linhas deu para comparar e o melhor EV visto, mesmo abaixo dos filtros
             seen = find_edges(data, meta, {**cfg, "min_ev": -1.0, "min_kelly_pct": -1.0, "min_odd": 1.0,
-                                           "max_odd": 1000.0, "max_ev": 1e9})
+                                           "max_odd": 1000.0, "max_ev": 1e9, "min_limit_usd": 0.0})
             top = max(seen, key=lambda e: e.ev) if seen else None
             best = f"{top.ev:+.1%}" if top else "-"
             note = ""

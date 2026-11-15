@@ -1,6 +1,6 @@
 {
-  "version": "0.1.5",
-  "url": "evcantos-0.1.5.zip",
-  "sha256": "7f8badd4c59cee1e8fc46bc460cc02d04bb81a256401026d0bdd1d508aa6da9e",
-  "notes": "Seletor do metodo de stake: Kelly classico ou 1/4 x EV; pendentes recalculam na hora"
+  "version": "0.2.0",
+  "url": "evcantos-0.2.0.zip",
+  "sha256": "a2d7d54328a596812b401660d9c57c1ace8b296450b134441af6eda018b1107f",
+  "notes": "Kalshi e Polymarket no lugar da Betano (Pinnacle segue como referencia): taxa no EV, preco do livro, plataformas e livro minimo na tela"
 }

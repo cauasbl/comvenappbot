@@ -5,8 +5,8 @@
   "min_ev": 0.03,
   "min_kelly_pct": 0.005,
   "max_ev": 0.15,
-  "min_odd": 1.5,
-  "max_odd": 3.5,
+  "min_odd": 1.1,
+  "max_odd": 20.0,
   "max_overround": 1.08,
   "devig": "power",
   "sharp": "pinnacle",
@@ -17,10 +17,41 @@
   "scan_interval_min": 0,
   "update_url": "https://raw.githubusercontent.com/cauasbl/comvenappbot/main/update/update.json",
   "leagues": {
-    "UEFA Nations League": {"id": 23755, "enabled": true},
-    "Premier League": {"id": 17, "enabled": true},
-    "LaLiga": {"id": 8, "enabled": true},
-    "Brasileiro Serie B": {"id": 390, "enabled": false},
-    "Copa del Rey": {"id": 329, "enabled": false}
+    "UEFA Nations League": {
+      "id": 23755,
+      "enabled": true
+    },
+    "Premier League": {
+      "id": 17,
+      "enabled": true
+    },
+    "LaLiga": {
+      "id": 8,
+      "enabled": true
+    },
+    "Brasileiro Serie B": {
+      "id": 390,
+      "enabled": false
+    },
+    "Copa del Rey": {
+      "id": 329,
+      "enabled": false
+    }
+  },
+  "venues": [
+    "kalshi",
+    "polymarket"
+  ],
+  "fees": {
+    "kalshi": 0.07,
+    "polymarket": 0.03
+  },
+  "min_limit_usd": 50.0,
+  "families": {
+    "corners": false,
+    "cards": false,
+    "goals": true,
+    "result": true,
+    "btts": true
   }
 }

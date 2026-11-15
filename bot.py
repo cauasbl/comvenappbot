@@ -43,12 +43,21 @@ def fmt_time(s: str | None) -> str:
     return f"{t.astimezone().strftime('%d/%m %H:%M')} ({utc})"
 
 
+def venue_line(a: dict) -> str:
+    """Casa e preco: contrato em centavos (+ taxa e limite do livro) ou a odd da casa antiga."""
+    if not a.get("venue"):
+        return f"Betano <b>{a['betano_odd']:.2f}</b>"
+    lim = f" · livro ${a['limit_usd']:.0f}" if a.get("limit_usd") is not None else ""
+    return (f"{a['venue'].capitalize()} <b>{a['ask'] * 100:.0f}¢</b> (+{a['fee'] * 100:.1f}¢ taxa) "
+            f"· odd efetiva <b>{a['betano_odd']:.2f}</b>{lim}")
+
+
 def format_alert(a: dict, footer: str = "") -> str:
     pin = json.loads(a["pin_odds"])
     text = (
         f"⚽ <b>{html.escape(a['fixture'])}</b>\n"
         f"{html.escape(a['market'])} — <b>{html.escape(a['outcome'])}</b>\n\n"
-        f"Betano <b>{a['betano_odd']:.2f}</b> · odd justa {1 / a['fair_prob']:.2f}\n"
+        f"{venue_line(a)} · odd justa {1 / a['fair_prob']:.2f}\n"
         f"Pinnacle {' / '.join(f'{x:.3f}' for x in pin)}\n"
         f"EV <b>{a['ev']:+.1%}</b> · ¼ Kelly {a['kelly_pct']:.2%} · stake <b>{a['stake']:.2f}</b>\n"
         f"Início: {fmt_time(a['start_time'])}"

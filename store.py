@@ -37,6 +37,11 @@ class Store:
         self._lock = threading.RLock()
         with self._lock:
             self.db.executescript(SCHEMA)
+            have = {r["name"] for r in self.db.execute("PRAGMA table_info(alerts)")}
+            for col, typ in (("venue", "TEXT"), ("ask", "REAL"), ("fee", "REAL"), ("limit_usd", "REAL")):
+                if col not in have:  # bancos antigos ganham as colunas novas
+                    self.db.execute(f"ALTER TABLE alerts ADD COLUMN {col} {typ}")
+            self.db.commit()
 
     # ---- settings ----
     def get(self, k: str, default=None):
@@ -53,7 +58,7 @@ class Store:
     # ---- alerts ----
     @staticmethod
     def key_of(e) -> str:
-        return f"{e.fixture_id}|{e.market_id}|{e.outcome_id}|{e.betano_odd}"
+        return f"{e.fixture_id}|{e.market_id}|{e.outcome_id}|{e.betano_odd}" + (f"|{e.venue}" if e.venue else "")
 
     def add_alert(self, e) -> int | None:
         """Grava o alerta. Devolve o id, ou None se esse mesmo sinal (jogo/mercado/lado/odd) ja foi enviado."""
@@ -61,10 +66,11 @@ class Store:
             try:
                 cur = self.db.execute(
                     "INSERT INTO alerts(key,created_at,fixture_id,start_time,fixture,market_id,market,outcome_id,"
-                    "outcome,pin_odds,fair_prob,betano_odd,ev,kelly_pct,stake) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "outcome,pin_odds,fair_prob,betano_odd,ev,kelly_pct,stake,venue,ask,fee,limit_usd) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (self.key_of(e), now_iso(), e.fixture_id, e.start_time, e.fixture, e.market_id, e.market,
                      e.outcome_id, e.outcome, json.dumps(list(e.pin_odds)), e.fair_prob, e.betano_odd, e.ev,
-                     e.kelly_pct, e.stake))
+                     e.kelly_pct, e.stake, e.venue, e.ask, e.fee, e.limit_usd))
             except sqlite3.IntegrityError:
                 # mesmo sinal ja gravado: atualiza os numeros se ainda estiver pendente (ex.: formula de stake mudou)
                 self.db.execute("UPDATE alerts SET fair_prob=?, ev=?, kelly_pct=?, stake=? WHERE key=? AND status='pending'",
