@@ -50,3 +50,27 @@ def test_invalid_version_is_refused(tmp_path):
     (root / "version.py").write_text('VERSION = "banana"\n')
     with pytest.raises(updater.UpdateError):
         make_update.build(root, tmp_path / "o")
+
+
+# ---- regressao da 0.4.x: modulo novo ficou fora do pacote e o app atualizado nao abria ----
+def test_code_files_follow_the_imports_of_app():
+    files = set(make_update.code_files(ROOT))
+    assert {"app.py", "bot.py", "cloud.py", "store.py", "corners.py", "core.py", "oddspapi.py", "tg.py",
+            "version.py"} <= files
+    assert not ({"updater.py", "desktop.py"} & files) and not any(f.startswith("test_") for f in files)
+
+
+def test_every_local_import_of_the_package_is_inside_it(tmp_path):
+    pkg, _ = make_update.build(ROOT, tmp_path)
+    make_update.smoke_test(pkg)  # abre so com o conteudo do zip + updater.py
+
+
+def test_smoke_test_catches_a_missing_module(tmp_path):
+    pkg, _ = make_update.build(ROOT, tmp_path)
+    broken = tmp_path / "broken.zip"
+    with zipfile.ZipFile(pkg) as src, zipfile.ZipFile(broken, "w") as dst:
+        for n in src.namelist():
+            if n != "cloud.py":  # exatamente o erro da 0.4.0
+                dst.writestr(n, src.read(n))
+    with pytest.raises(RuntimeError, match="cloud"):
+        make_update.smoke_test(broken)

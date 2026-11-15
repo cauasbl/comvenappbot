@@ -177,3 +177,18 @@ def test_update_check_error_is_reported_not_raised(srv2):  # noqa: F811
     a, bot, port, *_ = srv2
     code, s = call(port, "/api/update/check", {})  # sem endereco configurado
     assert code == 200 and s["update"]["available"] is False and "configurado" in s["update"]["error"]
+
+
+def test_check_update_flags_a_version_that_already_failed_here(srv2, host, monkeypatch):  # noqa: F811
+    a, bot, port, _, tmp = srv2
+    publish, _root = host
+    monkeypatch.chdir(tmp)
+    url = publish("99.0.0", notes="x")
+    assert call(port, "/api/config", {"update_url": url})[0] == 200
+    s = call(port, "/api/update/check", {})[1]
+    assert s["update"]["available"] is True and not s["update"].get("failed_before")
+    bad = tmp / "updates" / "99.0.0"
+    bad.mkdir(parents=True)
+    (bad / ".bad").write_text("falhou ao iniciar")  # o launcher marcou
+    s = call(port, "/api/update/check", {})[1]
+    assert s["update"]["failed_before"] is True

@@ -44,7 +44,7 @@ $stage = Join-Path $work "stage"
 Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue
 $code = Join-Path $stage "code"
 New-Item -ItemType Directory -Force $code | Out-Null
-foreach ($f in "app", "bot", "core", "corners", "oddspapi", "store", "tg", "version") { Copy-Item (Join-Path $proj "$f.py") $code }
+foreach ($f in "app", "bot", "cloud", "core", "corners", "oddspapi", "store", "tg", "version") { Copy-Item (Join-Path $proj "$f.py") $code }
 Copy-Item (Join-Path $proj "web") (Join-Path $code "web") -Recurse
 Copy-Item (Join-Path $proj "version.py") $stage
 Copy-Item (Join-Path $proj "config.default.json") (Join-Path $stage "config.json")

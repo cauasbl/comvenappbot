@@ -552,6 +552,8 @@ class App:
             info = {**updater.check(self.bot.cfg.get("update_url", ""), version.VERSION), "error": None}
         except updater.UpdateError as e:
             info = {"available": False, "error": str(e)}
+        if info.get("available") and (Path("updates") / str(info.get("version")) / ".bad").exists():
+            info["failed_before"] = True  # essa versao ja foi baixada aqui e falhou ao abrir: o launcher voltou a anterior
         self.update_info = {**info, "checked": True, "checked_at": time.time()}
         return self.update_info
 

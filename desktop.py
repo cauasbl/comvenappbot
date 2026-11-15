@@ -28,7 +28,7 @@ APP_ID = "EvCantos.App"  # agrupa a janela sob o icone do EV CANTOS na barra de 
 PORT = 8765
 FROZEN = getattr(sys, "frozen", False)
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
-APP_MODULES = ("app", "bot", "core", "corners", "oddspapi", "store", "tg", "version")  # atualizaveis por pacote
+APP_MODULES = ("app", "bot", "cloud", "core", "corners", "oddspapi", "store", "tg", "version")  # atualizaveis por pacote
 
 
 def data_dir() -> Path:

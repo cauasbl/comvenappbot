@@ -539,7 +539,7 @@ function renderUpd(){
   if(up.staged) status=`<div class="cost"><b>VERSAO ${esc(up.staged)} BAIXADA.</b> REINICIE O APP PARA APLICAR.</div><button class="go" data-updrestart>REINICIAR AGORA</button>`;
   else if(!up.checked) status='<div class="note">AINDA NAO VERIFICADO NESTA ABERTURA.</div>';
   else if(up.error) status=`<div class="cost warn">${esc(up.error)}</div>`;
-  else if(up.available) status=`<div class="cost"><b>NOVA VERSAO ${esc(up.version)} DISPONIVEL</b> (VOCE TEM ${esc(S.version)})<br>${esc(up.notes||"")}</div><button class="go" data-updinstall>BAIXAR E INSTALAR</button>`;
+  else if(up.available) status=`${up.failed_before?`<div class="cost warn"><b>A VERSAO ${esc(up.version)} JA FOI BAIXADA E FALHOU AO ABRIR NESTE COMPUTADOR</b>, POR ISSO O APP VOLTOU PARA A ANTERIOR. BAIXAR DE NOVO NAO ADIANTA ATE SAIR UMA CORRECAO.</div>`:""}<div class="cost"><b>NOVA VERSAO ${esc(up.version)} DISPONIVEL</b> (VOCE TEM ${esc(S.version)})<br>${esc(up.notes||"")}</div><button class="go" data-updinstall>BAIXAR E INSTALAR</button>`;
   else status='<div class="cost"><b>VOCE JA ESTA NA VERSAO MAIS NOVA.</b></div>';
   $("#updBody").innerHTML=`
   <div class="row">VERSAO INSTALADA: <b style="color:var(--yellow)">V${esc(S.version)}</b></div>
