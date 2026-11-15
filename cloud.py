@@ -37,6 +37,14 @@ class CloudError(RuntimeError):
     pass
 
 
+def normalize_url(u) -> str:
+    """Aceita a URL como o painel do Supabase a mostra: tira espacos, barra final e o sufixo /rest/v1."""
+    u = (u or "").strip().rstrip("/") if isinstance(u, str) else ""
+    if u.endswith("/rest/v1"):
+        u = u[:-len("/rest/v1")]
+    return u.rstrip("/")
+
+
 def url_ok(u: str) -> bool:
     return isinstance(u, str) and bool(URL_RE.match(u) or LOCAL_RE.match(u))
 
@@ -59,6 +67,7 @@ def _now() -> str:
 
 class Cloud:
     def __init__(self, url: str, key: str, user: str):
+        url, key = normalize_url(url), (key or "").strip()
         if not url_ok(url):
             raise CloudError("URL invalida: use https://SEU-PROJETO.supabase.co")
         if not KEY_RE.match(key or ""):

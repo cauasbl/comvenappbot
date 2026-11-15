@@ -1,6 +1,6 @@
 {
-  "version": "0.4.0",
-  "url": "evcantos-0.4.0.zip",
-  "sha256": "3b2d9cf17290e4ac406b9bec9c13cef6315a0f8011fde6f6235849a62e2d9b2d",
-  "notes": "Banco na nuvem (Supabase): sinais, scans e jogos vistos compartilhados; apostas separadas por pessoa"
+  "version": "0.4.1",
+  "url": "evcantos-0.4.1.zip",
+  "sha256": "26401f215d70b66a8f94a64860ce0548073bc485cb2ce520aef701d62bb684da",
+  "notes": "Nuvem: aceita a URL do Supabase colada com /rest/v1"
 }

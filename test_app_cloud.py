@@ -95,3 +95,9 @@ def test_cloud_failure_never_blocks_a_scan_or_local_use(srv2, fake):  # noqa: F8
     fake.fail = None
     s = call(port, "/api/cloud/sync", {})[1]  # voltou a internet: recupera tudo que ficou pendente
     assert s["cloud"]["ok"] is True and any(r["status"] == "ignored" for r in fake.t["decisions"].values())
+
+
+def test_rest_url_is_saved_normalized(srv2, fake):  # noqa: F811
+    a, bot, port, _, tmp = srv2
+    assert call(port, "/api/keys", {"supabase_url": URL + "/rest/v1/", "supabase_key": KEY})[0] == 200
+    assert json.loads((tmp / "secrets.json").read_text())["supabase_url"] == URL

@@ -193,3 +193,10 @@ def test_scans_get_a_uid_and_games_carry_it(tmp_path):
     s = Store(str(tmp_path / "m.db"))
     do_scan(s)
     assert s.dirty_scans()[0]["uid"] and s.dirty_games()[0]["scan_uid"] == s.dirty_scans()[0]["uid"]
+
+
+@pytest.mark.parametrize("raw", ["https://abc.supabase.co", "https://abc.supabase.co/", "https://abc.supabase.co/rest/v1",
+                                 "https://abc.supabase.co/rest/v1/", "  https://abc.supabase.co/rest/v1/  "])
+def test_url_pasted_from_the_dashboard_is_normalized(raw):
+    assert cloud.normalize_url(raw) == "https://abc.supabase.co"
+    assert Cloud(raw, KEY, "ana").base == "https://abc.supabase.co/rest/v1"  # sem /rest/v1 duplicado

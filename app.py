@@ -316,7 +316,7 @@ def validate_keys(patch: dict) -> list[str]:
     errors = [f"campo desconhecido: {k}" for k in patch
               if k not in ("oddspapi_key", "telegram_token", "supabase_url", "supabase_key")]
     su, sk = patch.get("supabase_url"), patch.get("supabase_key")
-    if su not in (None, "") and not cloudmod.url_ok(su):
+    if su not in (None, "") and not cloudmod.url_ok(cloudmod.normalize_url(su)):
         errors.append("supabase_url: use https://SEU-PROJETO.supabase.co")
     if sk not in (None, "") and not (isinstance(sk, str) and cloudmod.KEY_RE.match(sk)):
         errors.append("supabase_key: formato invalido")
@@ -439,7 +439,7 @@ class App:
         for k in ("supabase_url", "supabase_key"):
             if k in patch:
                 if patch[k]:
-                    keys[k] = patch[k]
+                    keys[k] = cloudmod.normalize_url(patch[k]) if k == "supabase_url" else patch[k].strip()
                 else:
                     keys.pop(k, None)
         if "telegram_token" in patch:
