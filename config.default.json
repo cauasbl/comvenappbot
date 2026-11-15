@@ -52,6 +52,17 @@
     "cards": false,
     "goals": true,
     "result": true,
-    "btts": true
+    "btts": true,
+    "tennis_winner": true,
+    "tennis_games": true,
+    "tennis_sets": true
+  },
+  "tennis": {
+    "enabled": true,
+    "categories": [
+      "ATP",
+      "WTA"
+    ],
+    "max_tournaments": 4
   }
 }

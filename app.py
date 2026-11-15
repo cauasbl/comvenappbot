@@ -129,6 +129,21 @@ def migrate_venues(cfg: dict) -> bool:
     return True
 
 
+def migrate_tennis(cfg: dict) -> bool:
+    """Configs antigas (so futebol) ganham o tenis ligado e as 3 familias novas de mercado. Idempotente."""
+    changed = False
+    if "tennis" not in cfg:
+        cfg["tennis"] = dict(corners.NEW_TENNIS)
+        changed = True
+    fam = cfg.get("families")
+    if isinstance(fam, dict):
+        for k in corners.TENNIS_FAMILIES:
+            if k not in fam:
+                fam[k] = True
+                changed = True
+    return changed
+
+
 # ---------- logica pura (testavel sem HTTP) ----------
 def apply_config(cfg: dict, patch: dict) -> list[str]:
     """Valida e aplica campos numericos/booleanos e familias. Devolve a lista de erros (vazia = aplicado)."""
@@ -136,6 +151,21 @@ def apply_config(cfg: dict, patch: dict) -> list[str]:
     patch = dict(patch)
     fam_patch = patch.pop("families", None)
     ui_patch = patch.pop("ui", None)
+    if "tennis" in patch:
+        tp = patch.pop("tennis")
+        ok = isinstance(tp, dict) and set(tp) <= {"enabled", "categories", "max_tournaments"}
+        if ok and "enabled" in tp:
+            ok = isinstance(tp["enabled"], bool)
+        if ok and "categories" in tp:
+            ok = (isinstance(tp["categories"], list) and bool(tp["categories"])
+                  and all(c in corners.TENNIS_CATEGORIES for c in tp["categories"]))
+        if ok and "max_tournaments" in tp:
+            mt = tp["max_tournaments"]
+            ok = isinstance(mt, int) and not isinstance(mt, bool) and 1 <= mt <= 12
+        if ok:
+            clean["tennis"] = {**corners.tennis_settings(cfg), **tp}
+        else:
+            errors.append("tennis: use enabled (true/false), categories (ATP, WTA, Challenger, WTA 125K) e max_tournaments (1 a 12)")
     if "cloud_user" in patch:
         cu = patch.pop("cloud_user")
         if isinstance(cu, str) and (cu == "" or cloudmod.USER_RE.match(cu)):
@@ -468,6 +498,21 @@ class App:
                 self._tourn = Client(key, self.cache_dir).tournaments(10)
         return self._tourn
 
+    def tennis_active(self) -> dict:
+        """Torneios de tenis que entrariam no proximo scan, pela ultima lista baixada (le o arquivo; nao consulta a API)."""
+        p = Path(self.cache_dir) / f"tournaments{corners.TENNIS_SPORT}.json"
+        try:
+            mt = p.stat().st_mtime
+        except OSError:
+            return {"names": [], "cached_at": None}
+        if getattr(self, "_tennis_cache", None) is None or self._tennis_cache[0] != mt:
+            try:
+                self._tennis_cache = (mt, json.loads(p.read_text(encoding="utf-8")))
+            except (OSError, ValueError):
+                return {"names": [], "cached_at": None}
+        return {"names": [n for n, _ in corners.tennis_tournaments(self.bot.cfg, self._tennis_cache[1])],
+                "cached_at": mt}
+
     def state(self) -> dict:
         b, cfg = self.bot, self.bot.cfg
         lists, cap = corners.estimate_cost(cfg)
@@ -484,6 +529,8 @@ class App:
                        "skip_seen": cfg.get("skip_seen", True),
                        "venues": cfg.get("venues") or [], "fees": cfg.get("fees") or {}},
             "leagues": leagues,
+            "tennis": {**corners.tennis_settings(cfg), "active": self.tennis_active(),
+                       "all_categories": list(corners.TENNIS_CATEGORIES)},
             "families": [{"key": k, "label": lbl, "enabled": k in corners.enabled_families(cfg)}
                          for k, lbl in corners.FAMILIES.items()],
             "budget": {"used": budget_used(self.cache_dir)},  # so informativo: consultas feitas pelo app, com a chave atual
@@ -742,6 +789,7 @@ def build(config_path: str = "config.json", key_required: bool = False) -> App:
     """Monta bot + app (sem abrir porta). Chaves: variavel de ambiente tem prioridade; senao secrets.json."""
     cfg = json.loads(Path(config_path).read_text(encoding="utf-8-sig"))  # -sig: aceita o BOM que o Bloco de Notas/PowerShell colocam
     migrate_venues(cfg)
+    migrate_tennis(cfg)
     keys = load_keys()
     if keys.get("oddspapi_key") and not os.environ.get("ODDSPAPI_KEY"):
         os.environ["ODDSPAPI_KEY"] = keys["oddspapi_key"]

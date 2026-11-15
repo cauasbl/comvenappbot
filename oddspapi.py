@@ -105,9 +105,11 @@ class Client:
         cache.write_text(json.dumps(data))
         return data
 
-    def tournaments(self, sport_id: int = 10) -> list[dict]:
+    def tournaments(self, sport_id: int = 10, max_age_h: float | None = None) -> list[dict]:
+        """Lista de torneios. max_age_h: refaz a consulta se o cache for mais velho que isso (os contadores de
+        jogos futuros mudam todo dia; sem max_age_h o cache vale para sempre, como no futebol)."""
         cache = self.dir / f"tournaments{sport_id}.json"
-        if cache.exists():
+        if cache.exists() and (max_age_h is None or time.time() - cache.stat().st_mtime < max_age_h * 3600):
             return json.loads(cache.read_text(encoding="utf-8"))
         data = self._get("/tournaments", sportId=sport_id)
         cache.write_text(json.dumps(data), encoding="utf-8")

@@ -1,6 +1,6 @@
 {
-  "version": "0.4.2",
-  "url": "evcantos-0.4.2.zip",
-  "sha256": "ed49ec6b46061460d0d430557419f2d3b0f9d45db9e9a02941221f0edf745e19",
-  "notes": "Corrige a atualizacao: faltava o modulo da nuvem no pacote (0.4.0 e 0.4.1 nao abriam). Avisa quando uma versao baixada falha ao abrir"
+  "version": "0.5.0",
+  "url": "evcantos-0.5.0.zip",
+  "sha256": "79c1725c328cee5e168e78ef519f02ae7d2f996a3dabf77c4c64ccb0b4fb2e48",
+  "notes": "Tenis no scan: escolhe sozinho os torneios ATP/WTA com jogos; vencedor, sets e games na Kalshi e Polymarket"
 }

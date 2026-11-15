@@ -420,6 +420,11 @@ function renderCfg(){
   <div class="row">${preset([0,30,60,120,240,360,720],iv,"scan_interval_min",v=>v?(v>=60?v/60+"H":v+"MIN"):"OFF","MINUTOS")}</div>
   <div class="note">CADA VARREDURA GASTA CONSULTAS DO PLANO. OS ALERTAS APARECEM AQUI NO APP (E NO TELEGRAM, SE ESTIVER LIGADO).</div>
 
+  <h3>TENIS (AUTOMATICO &mdash; ESCOLHE SOZINHO OS TORNEIOS COM JOGOS)</h3>
+  <div class="row">TENIS <button data-ten="on" class="${S.tennis.enabled?"on":""}">LIGADO</button><button data-ten="off" class="${!S.tennis.enabled?"on":""}">DESLIGADO</button>
+  &nbsp; CATEGORIAS ${S.tennis.all_categories.map(k=>`<button data-tencat="${esc(k)}" class="${S.tennis.categories.includes(k)?"on":""}">${esc(k.toUpperCase())}</button>`).join(" ")}</div>
+  <div class="row">MAXIMO DE TORNEIOS <input type="number" id="c_ten_max" value="${S.tennis.max_tournaments}" step="1" min="1" max="12" style="width:80px"> <button data-tenmax="1">OK</button></div>
+  <div class="note">${S.tennis.active.cached_at?`PELA ULTIMA LISTA BAIXADA, ENTRARIAM: ${S.tennis.active.names.length?S.tennis.active.names.map(esc).join(" &middot; "):"NENHUM TORNEIO COM JOGOS NESSAS CATEGORIAS"}`:"A LISTA DE TORNEIOS E BAIXADA NO PRIMEIRO SCAN COM O TENIS LIGADO."} &middot; CADA TORNEIO GASTA 1 CONSULTA POR SCAN, MAIS A LISTA (1 A CADA 12H). SO SIMPLES; CHALLENGER E WTA 125K TEM POUCA LIQUIDEZ NA KALSHI/POLYMARKET.</div>
   <h3>BANCA E FILTROS (O QUE PODE VIRAR ALERTA)</h3>
   <div class="row">BANCA <input type="number" id="c_bankroll" value="${c.bankroll}" step="50"> <button data-apply="bankroll">OK</button></div>
   <div class="row">EV MINIMO % <input type="number" id="c_min_ev" value="${(c.min_ev*100).toFixed(1)}" step="0.5" style="width:100px"> <button data-applypct="min_ev">OK</button>
@@ -449,6 +454,12 @@ document.addEventListener("click",async e=>{
     const el=$("#c_fee_"+fe.dataset.fee), n=Number(el.value);
     if(el.value===""||Number.isNaN(n)) return toast("VALOR INVALIDO",true);
     setCfg({fees:{[fe.dataset.fee]:n/100}}); return;}
+  const tn=e.target.closest("[data-ten]"); if(tn){ setCfg({tennis:{enabled:tn.dataset.ten==="on"}}); return;}
+  const tc=e.target.closest("[data-tencat]"); if(tc){
+    const cur=S.tennis.categories, k=tc.dataset.tencat, nxt=cur.includes(k)?cur.filter(x=>x!==k):[...cur,k];
+    if(!nxt.length) return toast("DEIXE PELO MENOS UMA CATEGORIA",true);
+    setCfg({tennis:{categories:nxt}}); return;}
+  if(e.target.closest("[data-tenmax]")){ const n=Number($("#c_ten_max").value); if(!Number.isInteger(n)||n<1||n>12) return toast("USE UM NUMERO DE 1 A 12",true); setCfg({tennis:{max_tournaments:n}}); return;}
   const skp=e.target.closest("[data-skip]"); if(skp){ setCfg({skip_seen:skp.dataset.skip==="1"}); return;}
   const km=e.target.closest("[data-kmode]"); if(km){ setCfg({kelly_mode:km.dataset.kmode}); return;}
   const a=e.target.closest("[data-apply],[data-applypct]"); if(a){

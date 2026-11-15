@@ -60,7 +60,16 @@ FAMILIES = {
     "goals": "Gols (mais/menos)",
     "result": "Resultado 1X2",
     "btts": "Ambas marcam",
+    "tennis_winner": "Tenis: vencedor (jogo e sets)",
+    "tennis_games": "Tenis: games (total e handicap)",
+    "tennis_sets": "Tenis: sets (total e handicap)",
 }
+TENNIS_FAMILIES = ("tennis_winner", "tennis_games", "tennis_sets")
+TENNIS_CATEGORIES = ("ATP", "WTA", "Challenger", "WTA 125K")
+# sem a chave "tennis" na config o tenis fica desligado; a migracao (app.migrate_tennis) e a config padrao ligam
+DEFAULT_TENNIS = {"enabled": False, "categories": ["ATP", "WTA"], "max_tournaments": 4}
+NEW_TENNIS = {**DEFAULT_TENNIS, "enabled": True}
+TENNIS_SPORT = 12  # esporte "Tennis" no OddsPapi (futebol = 10)
 
 
 def family_of(name: str) -> str | None:
@@ -75,6 +84,12 @@ def family_of(name: str) -> str | None:
         return "result"
     if n.startswith("both teams to score"):
         return "btts"
+    if n == "winner" or n.endswith(" set winner"):
+        return "tennis_winner"
+    if n.startswith("total games") or n.startswith("game handicap"):
+        return "tennis_games"
+    if n.startswith("total sets") or n.startswith("set handicap"):
+        return "tennis_sets"
     return None
 
 
@@ -93,8 +108,8 @@ def market_meta(markets: list[dict], families=None, include_handicap: bool = Fal
         fam = family_of(name)
         if fam not in on or len(m.get("outcomes", [])) not in (2, 3):
             continue
-        if "handicap" in name.lower() and not include_handicap:
-            continue
+        if "handicap" in name.lower() and not include_handicap and fam not in TENNIS_FAMILIES:
+            continue  # handicap de futebol (linhas asiaticas) fica de fora; no tenis so entram linhas x.5 (ver find_edges)
         out[str(m["marketId"])] = {**m, "family": fam}
     return out
 
@@ -154,8 +169,14 @@ def venue_fee(cfg: dict, venue: str, ask: float) -> float:
 
 
 LABELS = {"Full Time Result": "Resultado final (1X2)", "First Half Result": "Resultado 1o tempo (1X2)",
-          "Both Teams To Score": "Ambas marcam", "Both Teams To Score First Half": "Ambas marcam 1o tempo"}
-WORDS = (("Bookings", "Cartoes"), ("Corners", "Escanteios"), ("Over Under", "Total"),
+          "Both Teams To Score": "Ambas marcam", "Both Teams To Score First Half": "Ambas marcam 1o tempo",
+          "Winner": "Vencedor"}
+WORDS = (("Total Games Over Under", "Total de games"), ("Total Sets Over Under", "Total de sets"),
+         ("Total Games", "Total de games"), ("Total Sets", "Total de sets"),
+         ("Game Handicap", "Handicap de games"), ("Set Handicap", "Handicap de sets"),
+         ("First Set Winner", "Vencedor do 1o set"), ("Second Set Winner", "Vencedor do 2o set"),
+         ("Third Set Winner", "Vencedor do 3o set"), ("First Set", "1o set"), ("Second Set", "2o set"),
+         ("Third Set", "3o set"), ("Bookings", "Cartoes"), ("Corners", "Escanteios"), ("Over Under", "Total"),
          ("Full Time", "tempo normal"), ("First Half", "1o tempo"))
 
 
@@ -213,10 +234,15 @@ def find_edges(fixture: dict, meta: dict[str, dict], cfg: dict, now: datetime | 
                 continue
             if sp[2] is not None and sp[2] < cfg.get("min_limit_usd", 0.0):
                 continue  # livro raso: nao da para apostar nesse preco
+            is_hcp = "handicap" in m["marketName"].lower()
+            outcome_txt = _outcome_label(names[oid], fixture)
+            if is_hcp and names[oid] in ("1", "2"):  # handicap: mostra a linha COM sinal de cada lado (ex.: Alcaraz -2.5)
+                outcome_txt += f" {h if names[oid] == '1' else -h:+g}"
             edges.append(Edge(
                 fixture=title,
-                market=f"{_label(m['marketName'], fixture)} {abs(h):g}" if h else _label(m["marketName"], fixture),
-                outcome=_outcome_label(names[oid], fixture),
+                market=(_label(m["marketName"], fixture) if is_hcp or not h
+                        else f"{_label(m['marketName'], fixture)} {abs(h):g}"),
+                outcome=outcome_txt,
                 pin_odds=tuple(odds),
                 fair_prob=p,
                 betano_odd=odd,
@@ -277,9 +303,33 @@ def active_leagues(cfg: dict) -> dict[str, int]:
     return out
 
 
+def tennis_settings(cfg: dict) -> dict:
+    return {**DEFAULT_TENNIS, **(cfg.get("tennis") or {})}
+
+
+def tennis_tournaments(cfg: dict, tournaments: list[dict]) -> list[tuple[str, int]]:
+    """Torneios de tenis que valem a varredura agora: categorias escolhidas, so simples, com jogos pela frente.
+    Os torneios mudam toda semana (cada Challenger e um id novo), por isso a escolha e automatica e nao uma lista fixa."""
+    t = tennis_settings(cfg)
+    if not t["enabled"]:
+        return []
+    cats = set(t["categories"])
+    ok = [x for x in tournaments
+          if x.get("categoryName") in cats
+          and int(x.get("upcomingFixtures") or 0) + int(x.get("futureFixtures") or 0) > 0
+          and not any(w in x.get("tournamentName", "").lower() for w in ("doubles", "mixed"))]
+    ok.sort(key=lambda x: (-int(x.get("upcomingFixtures") or 0), -int(x.get("futureFixtures") or 0),
+                           x.get("tournamentName", "")))
+    return [(f"{x['tournamentName']} ({x['categoryName']})", x["tournamentId"]) for x in ok[:int(t["max_tournaments"])]]
+
+
 def estimate_cost(cfg: dict) -> tuple[int, int]:
-    """(consultas de lista = 1 por liga ativa, teto de jogos). Teto 0 = sem limite (custo imprevisivel)."""
-    return len(active_leagues(cfg)), int(cfg.get("max_fixtures", 10) or 0)
+    """(consultas de lista = 1 por liga ativa + torneios de tenis, teto de jogos). Teto 0 = sem limite."""
+    lists = len(active_leagues(cfg))
+    t = tennis_settings(cfg)
+    if t["enabled"]:
+        lists += 1 + int(t["max_tournaments"])  # 1 para renovar a lista de torneios + 1 por torneio
+    return lists, int(cfg.get("max_fixtures", 10) or 0)
 
 
 def blocked_reason(e: Edge, cfg: dict) -> str | None:
@@ -309,22 +359,38 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print, skip: s
     c = Client(key)
     cap = int(cfg.get("max_fixtures", 10) or 0) if max_fixtures is None else max_fixtures
     meta = market_meta(c.markets(10), enabled_families(cfg), cfg.get("include_handicap", False))
+    meta_by_sport = {10: meta}
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(hours=cfg["window_hours"])
     progress(f"Consultas ja feitas pelo app neste mes (esta chave): {c.used_this_month()}")
     pool = []
-    for league, tid in active_leagues(cfg).items():
+
+    def list_games(league: str, tid: int, sport: int) -> None:
         try:
             listed = c.fixtures(tid)
         except OddsPapiError as e:  # uma liga com problema nao derruba a varredura inteira
             progress(f"{league}: ERRO ao listar jogos ({e}); pulando")
-            continue
+            return
         fx = [x for x in listed if x.get("hasOdds")
               and now < datetime.fromisoformat(x["startTime"].replace("Z", "+00:00")) <= horizon]
         progress(f"{league}: {len(fx)} jogos na janela de {cfg['window_hours']}h")
         for x in fx:
-            x["_league"] = league
-        pool += [(x["startTime"], x) for x in fx]
+            x["_league"], x["_sport"] = league, sport
+        pool.extend((x["startTime"], x) for x in fx)
+
+    for league, tid in active_leagues(cfg).items():
+        list_games(league, tid, 10)
+    if tennis_settings(cfg)["enabled"]:
+        try:
+            tl = tennis_tournaments(cfg, c.tournaments(TENNIS_SPORT, max_age_h=12))
+            meta_by_sport[TENNIS_SPORT] = market_meta(c.markets(TENNIS_SPORT), enabled_families(cfg),
+                                                      cfg.get("include_handicap", False))
+        except OddsPapiError as e:
+            progress(f"Tenis: ERRO ao buscar torneios ({e}); pulando o tenis")
+            tl = []
+        progress(f"Tenis: {len(tl)} torneio(s) com jogos ({', '.join(n for n, _ in tl) or 'nenhum'})")
+        for league, tid in tl:
+            list_games(league, tid, TENNIS_SPORT)
     pool.sort(key=lambda t: t[0])
     listed, skipped = len(pool), 0
     if skip:
@@ -351,10 +417,11 @@ def run_live(cfg: dict, max_fixtures: int | None = None, progress=print, skip: s
             failures = 0
             scanned += 1
             data.update({k: f[k] for k in ("participant1Name", "participant2Name") if k in f})
-            found = find_edges(data, meta, cfg)
+            m_sport = meta_by_sport.get(f.get("_sport", 10), meta)
+            found = find_edges(data, m_sport, cfg)
             edges += found
             # transparencia: quantas linhas deu para comparar e o melhor EV visto, mesmo abaixo dos filtros
-            seen = find_edges(data, meta, {**cfg, "min_ev": -1.0, "min_kelly_pct": -1.0, "min_odd": 1.0,
+            seen = find_edges(data, m_sport, {**cfg, "min_ev": -1.0, "min_kelly_pct": -1.0, "min_odd": 1.0,
                                            "max_odd": 1000.0, "max_ev": 1e9, "min_limit_usd": 0.0})
             top = max(seen, key=lambda e: e.ev) if seen else None
             best = f"{top.ev:+.1%}" if top else "-"
