@@ -1,6 +1,6 @@
 {
-  "version": "0.3.0",
-  "url": "evcantos-0.3.0.zip",
-  "sha256": "9af01359da23d1ac9f7bfa6f985f5734420b0baac73ed1f49a8f696b0d6716a8",
-  "notes": "Botao HD/Retro no menu, registro de cada scan, historico e opcao de pular/repetir jogos ja vistos"
+  "version": "0.4.0",
+  "url": "evcantos-0.4.0.zip",
+  "sha256": "3b2d9cf17290e4ac406b9bec9c13cef6315a0f8011fde6f6235849a62e2d9b2d",
+  "notes": "Banco na nuvem (Supabase): sinais, scans e jogos vistos compartilhados; apostas separadas por pessoa"
 }

@@ -393,6 +393,13 @@ function renderCfg(){
 
   <h3>CHAVES (FICAM SALVAS SO NESTE COMPUTADOR)</h3>
   <div class="row">ODDSPAPI <input type="password" id="k_odds" autocomplete="off" placeholder="${S.keys.oddspapi?'SALVA - COLE OUTRA PARA TROCAR':'COLE A CHAVE AQUI'}" style="width:300px"> <button data-savekey="oddspapi_key">SALVAR</button> ${S.keys.oddspapi?'<b class="ok">OK</b>':'<b class="bad">FALTA</b>'}</div>
+  <h3>NUVEM (SUPABASE) &mdash; SINAIS, SCANS E JOGOS VISTOS COMPARTILHADOS</h3>
+  <div class="row">SEU NOME <input type="text" id="c_cloud_user" value="${esc((S.cloud&&S.cloud.user)||"")}" placeholder="EX: CAUA" style="width:140px"> <span class="note">CADA PESSOA USA UM NOME; AS APOSTAS (APOSTEI/IGNOREI) SAO SO SUAS.</span></div>
+  <div class="row">URL <input type="text" id="k_sburl" autocomplete="off" placeholder="${S.keys.supabase?'SALVA - COLE OUTRA PARA TROCAR':'https://SEU-PROJETO.supabase.co'}" style="width:300px"></div>
+  <div class="row">CHAVE <input type="password" id="k_sbkey" autocomplete="off" placeholder="${S.keys.supabase?'SALVA - COLE OUTRA PARA TROCAR':'ANON / PUBLISHABLE KEY'}" style="width:300px"></div>
+  <div class="row"><button data-cloudsave="1">SALVAR NUVEM</button><button data-cloudtest="1">TESTAR CONEXAO</button><button data-cloudsync="1">SINCRONIZAR AGORA</button>
+  ${S.cloud&&S.cloud.configured?(S.cloud.ok===false?'<b class="bad">ERRO</b>':S.cloud.ok?'<b class="ok">SINCRONIZADO</b>':'<b style="color:var(--yellow)">LIGADA</b>'):'<b style="color:var(--dim)">DESLIGADA</b>'}</div>
+  ${S.cloud&&S.cloud.error?`<div class="note bad">${esc(S.cloud.error)}</div>`:""}${S.cloud&&S.cloud.last?`<div class="note">ULTIMA SINCRONIZACAO ${fmtT(S.cloud.last)}${S.cloud.summary?` &middot; ENVIOU ${S.cloud.summary.alerts} SINAIS, ${S.cloud.summary.decisions} DECISOES, ${S.cloud.summary.games} JOGOS &middot; RECEBEU ${S.cloud.summary.new_alerts} SINAIS NOVOS`:""}</div>`:""}
   <div class="row">TELEGRAM (OPCIONAL) <input type="password" id="k_tg" autocomplete="off" placeholder="${S.keys.telegram?'SALVO - COLE OUTRO PARA TROCAR':'TOKEN DO BOTFATHER'}" style="width:300px"> <button data-savekey="telegram_token">SALVAR</button> ${S.keys.telegram?'<b class="ok">LIGADO</b>':'<b style="color:var(--dim)">DESLIGADO</b>'}</div>
 
   <h3>LIGAS (MARQUE AS QUE O BOT VAI VER)</h3>
@@ -448,6 +455,14 @@ document.addEventListener("click",async e=>{
     const pct=a.dataset.applypct!==undefined, k=pct?a.dataset.applypct:a.dataset.apply, el=$("#c_"+k), n=Number(el.value);
     if(el.value===""||Number.isNaN(n)) return toast("VALOR INVALIDO",true);
     setCfg({[k]:pct?n/100:n}); return;}
+  if(e.target.closest("[data-cloudsave]")){
+    const url=$("#k_sburl").value.trim(), key=$("#k_sbkey").value.trim(), user=$("#c_cloud_user").value.trim();
+    (async()=>{ try{
+      if(url||key){ const p={}; if(url)p.supabase_url=url; if(key)p.supabase_key=key; await api("/api/keys",p); }
+      S=await api("/api/config",{cloud_user:user}); toast("NUVEM SALVA"); renderCfg();
+    }catch(err){ toast(err.message,true); } })(); return; }
+  if(e.target.closest("[data-cloudtest]")){ api("/api/cloud/check",{}).then(r=>toast(r.ok?"CONEXAO OK":(r.error||"FALHOU"),!r.ok)).catch(err=>toast(err.message,true)); return; }
+  if(e.target.closest("[data-cloudsync]")){ toast("SINCRONIZANDO..."); api("/api/cloud/sync",{}).then(s=>{ S=s; renderCfg(); toast(S.cloud.ok?"SINCRONIZADO":(S.cloud.error||"NUVEM DESLIGADA"),!S.cloud.ok); }).catch(err=>toast(err.message,true)); return; }
   const sk=e.target.closest("[data-savekey]"); if(sk){
     const k=sk.dataset.savekey, v=$(k==="oddspapi_key"?"#k_odds":"#k_tg").value.trim();
     if(!v) return toast("COLE O VALOR PRIMEIRO",true);

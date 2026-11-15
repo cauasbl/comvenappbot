@@ -50,3 +50,15 @@ para a anterior. Mudanças em `desktop.py`/`updater.py` (o "launcher") exigem ge
 - O pacote de atualização leva só o código e a interface, nunca `config.json`, `bot.db`, `secrets.json` ou músicas.
 - Quem tiver acesso de escrita a este repositório controla o código que os usuários baixam: proteja a conta com
   verificação em duas etapas.
+
+## Nuvem (Supabase) para duas ou mais pessoas
+
+O app funciona sem internet; a nuvem so compartilha sinais, scans e jogos ja vistos (e guarda as decisoes de cada pessoa).
+
+1. Crie um projeto gratis em supabase.com (New project).
+2. SQL Editor > New query > cole o conteudo de `supabase_setup.sql` > Run.
+3. Project Settings > API: copie a **Project URL** e a chave **anon / publishable** (nunca a `service_role` / `secret`).
+4. No app: CONFIGURACOES > NUVEM: coloque seu nome, a URL e a chave > SALVAR NUVEM > TESTAR CONEXAO.
+5. Cada pessoa repete o passo 4 no seu computador, com o mesmo URL/chave e **um nome diferente**.
+
+A URL e a chave ficam so no `secrets.json` local (fora do GitHub). Quem tiver a URL + chave le e escreve as tabelas: compartilhe so entre voces.

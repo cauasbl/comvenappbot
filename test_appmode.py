@@ -49,7 +49,7 @@ def test_keys_saved_never_returned_and_applied(srv2, monkeypatch):
     monkeypatch.setattr(app.App, "start_polling", lambda self: None)  # sem rede
     bot.tg = None  # o app pode rodar sem Telegram
     secret = "abcdefgh-1234-5678"
-    assert call(port, "/api/state")[1]["keys"] == {"oddspapi": False, "telegram": False}
+    assert call(port, "/api/state")[1]["keys"] == {"oddspapi": False, "telegram": False, "supabase": False}
     code, s = call(port, "/api/keys", {"oddspapi_key": secret})
     assert code == 200 and s["keys"]["oddspapi"] is True
     assert secret not in json.dumps(call(port, "/api/state")[1])  # a API nunca devolve a chave

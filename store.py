@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import uuid
 from datetime import datetime, timezone
 
 SCHEMA = """
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS scan_games(
   id INTEGER PRIMARY KEY AUTOINCREMENT, scan_id INTEGER NOT NULL, fixture_id TEXT NOT NULL, fixture TEXT,
   league TEXT, start_time TEXT, compared INTEGER, signals INTEGER, best_ev REAL, note TEXT, seen_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS remote_seen(fixture_id TEXT PRIMARY KEY, seen_at TEXT);
 CREATE INDEX IF NOT EXISTS scan_games_fx ON scan_games(fixture_id);
 CREATE INDEX IF NOT EXISTS scan_games_scan ON scan_games(scan_id);
 """
@@ -48,10 +50,18 @@ class Store:
         self._lock = threading.RLock()
         with self._lock:
             self.db.executescript(SCHEMA)
-            have = {r["name"] for r in self.db.execute("PRAGMA table_info(alerts)")}
-            for col, typ in (("venue", "TEXT"), ("ask", "REAL"), ("fee", "REAL"), ("limit_usd", "REAL")):
-                if col not in have:  # bancos antigos ganham as colunas novas
-                    self.db.execute(f"ALTER TABLE alerts ADD COLUMN {col} {typ}")
+            new_cols = {
+                "alerts": (("venue", "TEXT"), ("ask", "REAL"), ("fee", "REAL"), ("limit_usd", "REAL"),
+                           ("found_by", "TEXT"), ("synced", "INTEGER DEFAULT 0")),
+                "scans": (("uid", "TEXT"), ("synced", "INTEGER DEFAULT 0")),
+                "scan_games": (("synced", "INTEGER DEFAULT 0"),),
+            }
+            for table, cols in new_cols.items():
+                have = {r["name"] for r in self.db.execute(f"PRAGMA table_info({table})")}
+                for col, typ in cols:
+                    if col not in have:  # bancos antigos ganham as colunas novas
+                        self.db.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+            self.db.execute("UPDATE scans SET uid=lower(hex(randomblob(16))) WHERE uid IS NULL")
             self.db.commit()
 
     # ---- settings ----
@@ -69,8 +79,8 @@ class Store:
     # ---- registro de scans ----
     def start_scan(self, trigger: str, params: dict) -> int:
         with self._lock:
-            cur = self.db.execute("INSERT INTO scans(started_at,trigger,params) VALUES(?,?,?)",
-                                  (now_iso(), trigger, json.dumps(params, ensure_ascii=False)))
+            cur = self.db.execute("INSERT INTO scans(started_at,trigger,params,uid) VALUES(?,?,?,?)",
+                                  (now_iso(), trigger, json.dumps(params, ensure_ascii=False), uuid.uuid4().hex))
             self.db.commit()
             return cur.lastrowid
 
@@ -79,7 +89,7 @@ class Store:
         s = stats or {}
         with self._lock:
             self.db.execute(
-                "UPDATE scans SET finished_at=?, status=?, error=?, signals=?, listed=?, skipped=?, scanned=?, "
+                "UPDATE scans SET synced=0, finished_at=?, status=?, error=?, signals=?, listed=?, skipped=?, scanned=?, "
                 "blocked=?, queries=? WHERE id=?",
                 (now_iso(), status, error, signals, s.get("listed"), s.get("skipped"), s.get("scanned"),
                  s.get("blocked"), s.get("queries"), scan_id))
@@ -98,7 +108,8 @@ class Store:
     def seen_ids(self) -> set[str]:
         """Jogos cujas odds ja foram lidas em algum scan."""
         with self._lock:
-            return {r["fixture_id"] for r in self.db.execute("SELECT DISTINCT fixture_id FROM scan_games")}
+            rows = self.db.execute("SELECT fixture_id FROM scan_games UNION SELECT fixture_id FROM remote_seen")
+            return {r["fixture_id"] for r in rows}
 
     def list_scans(self, limit: int = 50) -> list[dict]:
         with self._lock:
@@ -173,12 +184,80 @@ class Store:
             if not a or a["status"] != "pending":
                 return None
             if status == "bet":
-                self.db.execute("UPDATE alerts SET status='bet', decided_at=?, bet_odd=betano_odd, "
+                self.db.execute("UPDATE alerts SET status='bet', synced=0, decided_at=?, bet_odd=betano_odd, "
                                 "bet_stake=COALESCE(?, stake) WHERE id=?", (now_iso(), stake, aid))
             else:
-                self.db.execute("UPDATE alerts SET status='ignored', decided_at=? WHERE id=?", (now_iso(), aid))
+                self.db.execute("UPDATE alerts SET status='ignored', synced=0, decided_at=? WHERE id=?", (now_iso(), aid))
             self.db.commit()
             return self.alert(aid)
+
+    # ---- sincronizacao com a nuvem (ver cloud.py) ----
+    def dirty_alerts(self) -> list[dict]:
+        with self._lock:
+            return [dict(r) for r in self.db.execute("SELECT * FROM alerts WHERE synced=0 ORDER BY id LIMIT 2000")]
+
+    def dirty_scans(self) -> list[dict]:
+        with self._lock:
+            return [dict(r) for r in self.db.execute(
+                "SELECT * FROM scans WHERE synced=0 AND status!='running' ORDER BY id LIMIT 2000")]
+
+    def dirty_games(self) -> list[dict]:
+        with self._lock:
+            return [dict(r) for r in self.db.execute(
+                "SELECT g.*, s.uid AS scan_uid FROM scan_games g JOIN scans s ON s.id=g.scan_id "
+                "WHERE g.synced=0 AND s.status!='running' ORDER BY g.id LIMIT 5000")]
+
+    def mark_synced(self, table: str, items: list, user: str | None = None) -> None:
+        """Marca como enviado. Em 'alerts', items = [(id, status_enviado)]: se o alerta mudou durante o envio
+        (ex.: voce decidiu nesse meio tempo), ele continua pendente de envio."""
+        if table not in ("alerts", "scans", "scan_games"):
+            raise ValueError(table)
+        with self._lock:
+            for it in items:
+                if table == "alerts":
+                    aid, st = it
+                    self.db.execute("UPDATE alerts SET synced=1, found_by=COALESCE(found_by, ?) "
+                                    "WHERE id=? AND status=?", (user, aid, st))
+                else:
+                    self.db.execute(f"UPDATE {table} SET synced=1 WHERE id=?", (it,))
+            self.db.commit()
+
+    def add_remote_seen(self, pairs: list[tuple[str, str]]) -> None:
+        with self._lock:
+            self.db.executemany("INSERT OR REPLACE INTO remote_seen(fixture_id, seen_at) VALUES(?,?)", pairs)
+            self.db.commit()
+
+    def merge_remote_alerts(self, rows: list[dict]) -> int:
+        """Sinais achados pela outra pessoa: entram como pendentes (a decisao e sua). Devolve quantos eram novos."""
+        n = 0
+        with self._lock:
+            for r in rows:
+                cur = self.db.execute(
+                    "INSERT OR IGNORE INTO alerts(key,created_at,found_by,fixture_id,start_time,fixture,market_id,market,"
+                    "outcome_id,outcome,pin_odds,fair_prob,betano_odd,ev,kelly_pct,stake,venue,ask,fee,limit_usd,"
+                    "status,synced) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',1)",
+                    (r["key"], r["created_at"], r.get("found_by"), r.get("fixture_id"), r.get("start_time"),
+                     r.get("fixture"), r.get("market_id"), r.get("market"), r.get("outcome_id"), r.get("outcome"),
+                     r.get("pin_odds"), r.get("fair_prob"), r.get("betano_odd"), r.get("ev"), r.get("kelly_pct"),
+                     0.0, r.get("venue"), r.get("ask"), r.get("fee"), r.get("limit_usd")))
+                n += cur.rowcount
+            self.db.commit()
+        return n
+
+    def apply_remote_decisions(self, rows: list[dict]) -> int:
+        """Decisoes minhas vindas da nuvem (outra instalacao): so valem para alertas ainda pendentes aqui."""
+        n = 0
+        with self._lock:
+            for r in rows:
+                if r.get("status") not in ("bet", "ignored"):
+                    continue
+                cur = self.db.execute(
+                    "UPDATE alerts SET status=?, decided_at=?, bet_odd=?, bet_stake=?, synced=1 "
+                    "WHERE key=? AND status='pending'",
+                    (r["status"], r.get("decided_at"), r.get("bet_odd"), r.get("bet_stake"), r["alert_key"]))
+                n += cur.rowcount
+            self.db.commit()
+        return n
 
     def counts(self) -> dict:
         with self._lock:

@@ -24,6 +24,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 import bot as botmod
+import cloud as cloudmod
 from core import stake_pct
 import corners
 import updater
@@ -135,6 +136,12 @@ def apply_config(cfg: dict, patch: dict) -> list[str]:
     patch = dict(patch)
     fam_patch = patch.pop("families", None)
     ui_patch = patch.pop("ui", None)
+    if "cloud_user" in patch:
+        cu = patch.pop("cloud_user")
+        if isinstance(cu, str) and (cu == "" or cloudmod.USER_RE.match(cu)):
+            clean["cloud_user"] = cu
+        else:
+            errors.append("cloud_user: 2 a 24 letras, numeros, _ ou -")
     if "skip_seen" in patch:
         sk = patch.pop("skip_seen")
         if isinstance(sk, bool):
@@ -306,7 +313,13 @@ def save_keys(keys: dict, path: str = SECRETS_FILE) -> None:
 
 
 def validate_keys(patch: dict) -> list[str]:
-    errors = [f"campo desconhecido: {k}" for k in patch if k not in ("oddspapi_key", "telegram_token")]
+    errors = [f"campo desconhecido: {k}" for k in patch
+              if k not in ("oddspapi_key", "telegram_token", "supabase_url", "supabase_key")]
+    su, sk = patch.get("supabase_url"), patch.get("supabase_key")
+    if su not in (None, "") and not cloudmod.url_ok(su):
+        errors.append("supabase_url: use https://SEU-PROJETO.supabase.co")
+    if sk not in (None, "") and not (isinstance(sk, str) and cloudmod.KEY_RE.match(sk)):
+        errors.append("supabase_key: formato invalido")
     k, t = patch.get("oddspapi_key"), patch.get("telegram_token")
     if k not in (None, "") and not (isinstance(k, str) and KEY_RE.match(k)):
         errors.append("oddspapi_key: formato invalido")
@@ -328,6 +341,73 @@ class App:
         self.update_staged: str | None = None
         self._tourn: list[dict] | None = None
         self._polling = False
+        self.cloud: cloudmod.Cloud | None = None
+        self.cloud_state: dict = {"ok": None, "error": None, "last": None, "summary": None}
+        self._cloud_lock = threading.Lock()
+
+    # ---- nuvem (Supabase) ----
+    def make_cloud(self) -> None:
+        """(Re)cria o cliente da nuvem a partir de secrets.json + config['cloud_user']; sem os 3, fica desligada."""
+        keys, user = load_keys(self.secrets_path), self.bot.cfg.get("cloud_user") or ""
+        self.cloud, self.bot.pre_scan = None, None
+        if not (keys.get("supabase_url") and keys.get("supabase_key") and user):
+            self.cloud_state.update(ok=None, error=None)
+            return
+        try:
+            self.cloud = cloudmod.Cloud(keys["supabase_url"], keys["supabase_key"], user)
+            self.cloud_state.update(ok=None, error=None)
+            self.bot.pre_scan = self._cloud_pre_scan
+        except cloudmod.CloudError as e:
+            self.cloud_state.update(ok=False, error=str(e))
+
+    def _cloud_pre_scan(self) -> None:
+        try:
+            n = self.cloud.pull_seen(self.bot.store)
+            self.log(f"Nuvem: jogos vistos atualizados ({n} novo(s) registro(s))")
+        except cloudmod.CloudError as e:
+            self.log(f"Nuvem indisponivel ({e}); o scan segue so com o que este computador ja sabe")
+
+    def cloud_sync(self) -> dict:
+        """Envia o que mudou e traz o que e novo. Nunca levanta: o erro vai para cloud_state."""
+        if not self.cloud:
+            return self.cloud_state
+        if not self._cloud_lock.acquire(blocking=False):
+            return self.cloud_state  # ja tem uma sincronizacao em andamento
+        try:
+            r = self.cloud.sync(self.bot.store)
+            self.cloud_state.update(ok=True, error=None, last=r["at"], summary=r)
+        except cloudmod.CloudError as e:
+            self.cloud_state.update(ok=False, error=str(e))
+            self.log(f"Nuvem: {e}")
+        except Exception as e:  # noqa: BLE001
+            self.cloud_state.update(ok=False, error=f"erro inesperado: {e}")
+            log.exception("sincronizacao com a nuvem falhou")
+        finally:
+            self._cloud_lock.release()
+        return self.cloud_state
+
+    def cloud_sync_async(self) -> None:
+        if self.cloud:
+            threading.Thread(target=self.cloud_sync, daemon=True).start()
+
+    def cloud_check(self) -> dict:
+        if not self.cloud:
+            return {"ok": False, "error": "preencha URL, chave e seu nome em CONFIGURACOES > NUVEM"}
+        try:
+            self.cloud.check()
+            self.cloud_state.update(ok=True, error=None)
+            return {"ok": True}
+        except cloudmod.CloudError as e:
+            self.cloud_state.update(ok=False, error=str(e))
+            return {"ok": False, "error": str(e)}
+
+    def start_cloud_loop(self, every: float = 300.0) -> None:
+        """Sincroniza ao abrir e depois a cada 5 minutos (decisoes e scans sao enviados na hora tambem)."""
+        def loop():
+            self.cloud_sync()
+            while not self.bot.stop.wait(every):
+                self.cloud_sync()
+        threading.Thread(target=loop, daemon=True).start()
 
     def log(self, msg: str) -> None:
         self.logs.append({"t": time.strftime("%H:%M:%S"), "m": msg})
@@ -356,6 +436,12 @@ class App:
             else:
                 keys.pop("oddspapi_key", None)
                 os.environ.pop("ODDSPAPI_KEY", None)
+        for k in ("supabase_url", "supabase_key"):
+            if k in patch:
+                if patch[k]:
+                    keys[k] = patch[k]
+                else:
+                    keys.pop(k, None)
         if "telegram_token" in patch:
             if patch["telegram_token"]:
                 keys["telegram_token"] = patch["telegram_token"]
@@ -365,6 +451,9 @@ class App:
                 keys.pop("telegram_token", None)
                 self.bot.tg = None
         save_keys(keys, self.secrets_path)
+        if "supabase_url" in patch or "supabase_key" in patch:
+            self.make_cloud()
+            self.cloud_sync_async()
         return []
 
     def tournaments(self) -> list[dict]:
@@ -401,7 +490,9 @@ class App:
             "cost": {"lists": lists, "cap": cap},
             "auto": {"interval": iv, "next_in": max(0, int(nxt - time.time())) if iv and nxt else None},
             "telegram": {"enabled": bool(b.tg), "linked": bool(b.chat)},
-            "keys": {"oddspapi": self.has_key(), "telegram": bool(b.tg)},
+            "keys": {"oddspapi": self.has_key(), "telegram": bool(b.tg),
+                     "supabase": bool(load_keys(self.secrets_path).get("supabase_key"))},
+            "cloud": {"configured": self.cloud is not None, "user": cfg.get("cloud_user") or "", **self.cloud_state},
             "scan": {"running": b.lock.locked(), "log": list(self.logs)[-120:], "result": b.last_result},
             "counts": counts,
             "ui": effective_ui(cfg),
@@ -435,6 +526,7 @@ class App:
         self.log("INICIANDO VARREDURA" + (" (repetindo jogos ja vistos)" if repeat else ""))
         try:
             self.bot.run_scan(self.bot.chat, repeat=repeat)
+            self.cloud_sync()
         except Exception as e:  # noqa: BLE001 - nada pode derrubar a thread em silencio
             self.log(f"ERRO: {e}")
         else:
@@ -585,6 +677,9 @@ def make_handler(app: App):
                     if errs:
                         return self._send(400, {"errors": errs})
                     app.save()
+                    if "cloud_user" in body:
+                        app.make_cloud()
+                        app.cloud_sync_async()
                     return self._send(200, app.state())
                 if path == "/api/league":
                     err = league_op(cfg, body)
@@ -599,6 +694,11 @@ def make_handler(app: App):
                     return self._send(200, app.state())
                 if path == "/api/scan":
                     return self._send(200, app.start_scan(repeat=body.get("repeat") is True))
+                if path == "/api/cloud/check":
+                    return self._send(200, app.cloud_check())
+                if path == "/api/cloud/sync":
+                    app.cloud_sync()
+                    return self._send(200, app.state())
                 if path == "/api/music/open":
                     opener = getattr(os, "startfile", None)  # so existe no Windows
                     if opener:
@@ -626,6 +726,7 @@ def make_handler(app: App):
                     row = app.bot.decide_alert(body["id"], status)
                     if row is None:
                         return self._send(409, {"errors": ["alerta inexistente ou ja decidido"]})
+                    app.cloud_sync_async()
                     return self._send(200, {"alert": present(row)})
                 return self._send(404, {"error": "nao encontrado"})
             except Exception as e:  # noqa: BLE001
@@ -647,6 +748,9 @@ def build(config_path: str = "config.json", key_required: bool = False) -> App:
     bot = botmod.Bot(Telegram(token) if token else None, Store("bot.db"), cfg,
                      scanner=corners.live_scanner(the_app.log), cfg_path=config_path)
     the_app.bot = bot
+    the_app.make_cloud()
+    if the_app.cloud:
+        the_app.start_cloud_loop()
     threading.Thread(target=botmod.scheduler, args=(bot,), daemon=True).start()
     the_app.start_polling()
     if cfg.get("update_url"):  # verificacao silenciosa ao abrir (so le o manifesto; nada e baixado)

@@ -91,6 +91,7 @@ class Bot:
         self.stop = threading.Event()
         self.next_scan_at: float | None = None
         self.last_result: dict | None = None
+        self.pre_scan = None  # opcional: roda antes de cada scan (ex.: trazer da nuvem os jogos ja vistos)
 
     # ---- config ----
     def save_cfg(self) -> None:
@@ -123,6 +124,11 @@ class Bot:
                                                     "leagues": sorted(k for k, v in self.cfg.get("leagues", {}).items()
                                                                      if league_enabled(v))})
             stats: dict = {}
+            if skip_on and self.pre_scan:
+                try:
+                    self.pre_scan()
+                except Exception:  # noqa: BLE001 - a nuvem nunca pode impedir um scan
+                    log.exception("pre_scan falhou")
             if getattr(self.scanner, "wants_ctx", False):  # scanner que sabe registrar jogos e pular os vistos
                 edges = self.scanner(self.cfg, skip=self.store.seen_ids() if skip_on else None,
                                      on_game=lambda f, i: self.store.record_game(scan_id, f, i), stats=stats)
